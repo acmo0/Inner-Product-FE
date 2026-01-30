@@ -6,6 +6,7 @@ Since the scheme is defined for any prime-order cyclic group, a version over the
 Another version based on the Ristretto255 elliptic curve is also implemented in [`ristretto-znz-fe`](./ristretto-znz-fe), which **is way faster**.
 
 ## Benchmarking
+
 | Implementation | Base crate       | Encryption time | Decryption time |
 |----------------|------------------|-----------------|-----------------|
 | DH group n°15  | Bigint           | 8.82 s          | 0.271 s         |
