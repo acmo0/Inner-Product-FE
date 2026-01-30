@@ -1,0 +1,9 @@
+[workspace]
+resolver = "3"
+members = ["benches", "malachite-znz-fe", "num-znz-fe", "ristretto-znz-fe"]
+
+[profile.release]
+debug = true
+codegen-units = 1
+lto = "fat"
+panic = "abort"
