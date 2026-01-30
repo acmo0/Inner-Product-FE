@@ -2,7 +2,7 @@
 
 This repository aims to provide multiple implementation of the first scheme depicted in the paper [Fully Secure Functional Encryption for Inner Products, from Standard Assumptions](https://eprint.iacr.org/2015/608).
 
-Since the scheme is defined for any prime-order cyclic group, a version over the Diffie-Hellman group n°15 from [RFC 3526](https://datatracker.ietf.org/doc/html/rfc3526). This has been implemented using both [Bigint crate]() (in [`num-znz-fe`](./num-znz-fe)) and [Malachite crate]() (in [`malachite-znz-fe`](./malachite-znz-fe)).
+Since the scheme is defined for any prime-order cyclic group, a version over the Diffie-Hellman group n°15 from [RFC 3526](https://datatracker.ietf.org/doc/html/rfc3526). This has been implemented using both [Bigint crate](https://crates.io/crates/num-bigint) (in [`num-znz-fe`](./num-znz-fe)) and [Malachite crate](https://crates.io/crates/malachite) (in [`malachite-znz-fe`](./malachite-znz-fe)).
 Another version based on the Ristretto255 elliptic curve is also implemented in [`ristretto-znz-fe`](./ristretto-znz-fe), which **is way faster**.
 
 ## Benchmarking
