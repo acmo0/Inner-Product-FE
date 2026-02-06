@@ -23,3 +23,10 @@ name = "DDH-FF-FE"
 path = "src/bench_ristretto.rs"
 harness = false
 required-features = ["finite-field"]
+
+
+[[bench]]
+name = "Nilsimsa-comparator"
+path = "src/bench_nilsimsa_comparator.rs"
+harness = false
+required-features = ["elliptic-curve"]

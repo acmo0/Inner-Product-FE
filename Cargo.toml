@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["benches", "fe"]
+members = ["benches", "comparator", "fe", "fuzzy_hashes"]
 
 [profile.release]
 debug = true
