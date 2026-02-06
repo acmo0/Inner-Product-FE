@@ -9,9 +9,9 @@ Another version based on the Ristretto255 elliptic curve is also implemented in 
 
 | Implementation | Base crate       | Encryption time | Decryption time |
 |----------------|------------------|-----------------|-----------------|
-| DH group n°15  | Bigint           | 8.82 s          | 0.271 s         |
+| DH group n°15  | Bigint(1)          | 8.82 s          | 0.271 s         |
 | DH group n°15  | Malachite        | 7.06 s          | 0.043 s         |
-| Ristretto255   | Curve25519-dalek | 0.03 s          | 0.005 s         |
+| Ristretto255(2)   | Curve25519-dalek | 0.03 s          | 0.005 s         |
 
-> Note : elliptic curve operations are done in constant-time to avoid some side-channel attack
+> Notes :  (1) Because it was less efficient than malachite I droped it to reduce implementation time  (2)elliptic curve operations are done in constant-time to avoid some side-channel attack
 

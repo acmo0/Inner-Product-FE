@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["benches", "malachite-znz-fe", "num-znz-fe", "ristretto-znz-fe"]
+members = ["benches", "fe"]
 
 [profile.release]
 debug = true

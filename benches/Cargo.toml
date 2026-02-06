@@ -6,23 +6,20 @@ edition = "2024"
 [dependencies]
 criterion = "0.8.1"
 rand = { version = "0.10.0-rc.8" }
-malachite-znz-fe = { path = "../malachite-znz-fe/" }
-num-znz-fe = { path = "../num-znz-fe/" }
-ristretto-znz-fe = { path = "../ristretto-znz-fe/" }
-num-bigint = "0.4.6"
-malachite = "0.9.0"
+fe = { path = "../fe", default-features = false }
+
+[features]
+elliptic-curve = ["fe/elliptic-curve"]
+finite-field = ["fe/finite-field"]
 
 [[bench]]
-name = "DDH-BigUint-FE"
-path = "src/bench_biguint.rs"
-harness = false
-
-[[bench]]
-name = "DDH-Malachite-FE"
-path = "src/bench_malachite.rs"
-harness = false
-
-[[bench]]
-name = "DDH-Ristretto-FE"
+name = "DDH-EC-FE"
 path = "src/bench_ristretto.rs"
 harness = false
+required-features = ["elliptic-curve"]
+
+[[bench]]
+name = "DDH-FF-FE"
+path = "src/bench_ristretto.rs"
+harness = false
+required-features = ["finite-field"]
