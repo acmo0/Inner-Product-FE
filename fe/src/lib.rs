@@ -25,7 +25,7 @@ pub mod traits;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::traits::{FEInstance, FEPrivKey, FEPubKey};
+    use super::traits::*;
     use proptest::prelude::*;
     use proptest::test_runner::{TestError, TestRunner};
     use rand::{

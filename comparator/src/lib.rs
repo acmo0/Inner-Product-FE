@@ -1,48 +1,38 @@
 #![feature(generic_const_exprs)]
 
-use fe::Instance;
+use fe::{Instance, CipherText, SecretKey};
 use fuzzy_hashes::Nilsimsa;
 use rand::rngs::{StdRng, SysRng};
 use rand::SeedableRng;
-use fe::traits::{FEInstance, FEPrivKey, FEPubKey};
+use fe::traits::{FEInstance, FESecretKey, FEPubKey};
 use std::array;
 
+mod traits;
+use traits::Comparator;
 
-fn not_concat<const N: usize>(v: [u8; N]) -> [u8; N + N] where [(); N + N]:, {
-    array::from_fn(|i| {
-        if i < N {
-            v[i]
-        } else {
-            1 - v[i % N]
+const NILSIMSA_CT_SIZE: usize = 512;
+
+type NilsimsaCipherText = CipherText<NILSIMSA_CT_SIZE>;
+type NilsimsaSecretKey = SecretKey<NILSIMSA_CT_SIZE>;
+
+impl Comparator<NILSIMSA_CT_SIZE, i16, NilsimsaCipherText> for NilsimsaSecretKey {
+    fn compare(&self, encrypted_vector: NilsimsaCipherText) -> i16 {
+        let dec = self.decrypt(encrypted_vector, NILSIMSA_CT_SIZE as u16);
+
+        match dec {
+            None => panic!("Something went wrong, unable to retrieve the hamming distance"),
+            Some(d) => {
+                println!("{:?}", d);
+                128 - ((NILSIMSA_CT_SIZE as i16) - (d as i16))
+            },
         }
-    })
-}
-
-fn compare<const N: usize>(h1_bits: [u8; N], h2_bits: [u8; N]) -> i16 where [(); N + N]:, {
-    let h1_not_concat = not_concat(h1_bits);
-    let h2_not_concat = not_concat(h2_bits);
-
-    let instance = Instance::setup();
-    let pk = instance.public_key::<u8>();
-    let sk = instance.secret_key::<u8>(h1_not_concat);
-    
-    let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
-
-    let ct = pk.encrypt(&mut rng, h2_not_concat);
-    let dec = sk.decrypt(ct, (16 * N) as u16);
-
-    match dec {
-        None => panic!("Something went wrong, unable to retrieve the hamming distance"),
-        Some(d) => {
-            println!("{:?}", d);
-            128 - ((N as i16) - (d as i16))
-        },
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use traits::*;
     use proptest::prelude::*;
     use proptest::test_runner::{TestError, TestRunner};
 
@@ -64,7 +54,38 @@ mod tests {
         let result = runner.run(
             &two_random_bitvec(),
             |(secret_vec, secret_client_vec): ([u8; N], [u8; N])| {
-                assert_eq!(compare::<N>(secret_vec, secret_client_vec), 128 - secret_vec.iter().zip(secret_client_vec).map(|(b1, b2)| (*b1 as i16) * (b2 as i16)).sum::<i16>());
+                let expected_score = 128 - secret_vec.iter().zip(secret_client_vec).map(|(b1, b2)| (*b1 as i16) * (b2 as i16)).sum::<i16>();
+
+                // Construct ciphertexts : concat hash and not(hash) for both hashes
+                let secret_vec_to_compare: [u8; NILSIMSA_CT_SIZE] = array::from_fn(|i| {
+                    if i < N {
+                        secret_vec[i]
+                    } else {
+                        1 - secret_vec[i % N]
+                    }
+                });
+
+                let client_vec_to_compare: [u8; NILSIMSA_CT_SIZE] = array::from_fn(|i| {
+                    if i < N {
+                        secret_client_vec[i]
+                    } else {
+                        1 - secret_client_vec[i % N]
+                    }
+                });
+
+                // Generate a fresh instance, pk and sk
+                let instance = Instance::setup();
+                let pk = instance.public_key::<u8>();
+                let sk: NilsimsaSecretKey = instance.secret_key::<u8>(secret_vec_to_compare);
+                
+                // Encrypt the client vector
+                let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
+                let ct: NilsimsaCipherText = pk.encrypt(&mut rng, client_vec_to_compare);
+
+                // Get the score
+                let score = sk.compare(ct);
+
+                assert_eq!(score, expected_score);
                 Ok(())
             },
         );

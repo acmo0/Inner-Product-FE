@@ -10,7 +10,7 @@ use rand::{
 };
 
 use crate::generic::{DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey, MskItem};
-use crate::traits::{FEInstance, FEPrivKey, FEPubKey};
+use crate::traits::{FEInstance, FESecretKey, FEPubKey, FECipherText};
 
 // Type aliases (shared by both ec_fe.rs and ff_fe.rs)
 pub type Instance<const N: usize> = DdhFeInstance<N, Scalar, RistrettoPoint>;
@@ -101,15 +101,26 @@ where
     }
 }
 
-impl<const N: usize> FEPrivKey<N, RistrettoPoint, u16> for SecretKey<N> {
-    fn decrypt(&self, ct: CipherText<N>, bound: u16) -> Option<u16> {
+impl<const N: usize> FECipherText<RistrettoPoint> for CipherText<N> {
+    fn get_c(&self) -> RistrettoPoint {
+        self.c
+    }
+    fn get_d(&self) -> RistrettoPoint {
+        self.d
+    }
+    fn get_e(&self) -> &[RistrettoPoint] {
+        &self.e
+    }
+}
+impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
+    fn decrypt(&self, ct: impl FECipherText<RistrettoPoint>, bound: u16) -> Option<u16> {
         let scalars: Vec<_> = self
             .x
             .iter()
             .chain(&[-self.sx, -self.tx])
             .cloned()
             .collect();
-        let points: Vec<_> = ct.e.iter().chain(&[ct.c, ct.d]).cloned().collect();
+        let points: Vec<_> = ct.get_e().iter().chain(&[ct.get_c(), ct.get_d()]).cloned().collect();
 
         // Compute sum(E * xi) - C * sx - D * tx
         let ex = RistrettoPoint::multiscalar_mul(scalars, points);

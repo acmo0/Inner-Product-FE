@@ -28,7 +28,13 @@ pub trait FEPubKey<const N: usize, T, U> {
     fn encrypt<R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; N]) -> DdhFeCiphertext<N, U>;
 }
 
-pub trait FEPrivKey<const N: usize, U, S> {
+pub trait FESecretKey<const N: usize, U, S> {
     /// Decrypt the given ciphertext (i.e compute an inner product) using the secret key
-    fn decrypt(&self, ct: DdhFeCiphertext<N, U>, bound: S) -> Option<S>;
+    fn decrypt(&self, ct: impl FECipherText<U>, bound: S) -> Option<S>;
+}
+
+pub trait FECipherText<U>{
+    fn get_c(&self) -> U;
+    fn get_d(&self) -> U;
+    fn get_e(&self) -> &[U];
 }
