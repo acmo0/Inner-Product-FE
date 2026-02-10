@@ -1,10 +1,10 @@
 use criterion::{Criterion, criterion_group, criterion_main};
+use fe::Instance;
+use fe::traits::{FEInstance, FEPrivKey, FEPubKey};
 use rand::RngExt;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::rngs::SysRng;
-use fe::Instance;
-use fe::traits::{FEInstance, FEPrivKey, FEPubKey};
 use std::hint::black_box;
 
 const N: usize = 512;

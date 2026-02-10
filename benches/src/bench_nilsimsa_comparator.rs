@@ -1,30 +1,25 @@
 #![feature(generic_const_exprs)]
 
 use criterion::{Criterion, criterion_group, criterion_main};
+use fe::Instance;
+use fe::traits::{FEInstance, FEPrivKey, FEPubKey};
 use rand::RngExt;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::rngs::SysRng;
-use fe::Instance;
-use fe::traits::{FEInstance, FEPrivKey, FEPubKey};
-use std::hint::black_box;
 use std::array;
+use std::hint::black_box;
 
 const N: usize = 256;
 
-fn not_concat<const N: usize>(v: [u8; N]) -> [u8; N + N] where [(); N + N]:, {
-    array::from_fn(|i| {
-        if i < N {
-            v[i]
-        } else {
-            1 - v[i % N]
-        }
-    })
+fn not_concat<const N: usize>(v: [u8; N]) -> [u8; N + N]
+where
+    [(); N + N]:,
+{
+    array::from_fn(|i| if i < N { v[i] } else { 1 - v[i % N] })
 }
 
 fn bench_fe(c: &mut Criterion) {
-    
-
     let mut vector = [0u8; N];
     let mut rand_bit_vector = [0u8; N];
     let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
@@ -56,16 +51,15 @@ fn bench_fe(c: &mut Criterion) {
         b.iter(|| {
             let sk = instance.secret_key::<u8>(black_box(h1_not_concat));
             let dec = sk.decrypt(black_box(ct.clone()), (16 * N) as u16);
-                match dec {
+            match dec {
                 None => panic!("Something went wrong, unable to retrieve the hamming distance"),
                 Some(d) => {
                     //println!("{:?}", d);
                     black_box(128 - ((N as i16) - (d as i16)));
-                },
+                }
             }
         })
     });
-
 }
 
 criterion_group!(benches, bench_fe);

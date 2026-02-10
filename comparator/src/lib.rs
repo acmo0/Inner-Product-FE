@@ -1,10 +1,8 @@
-#![feature(generic_const_exprs)]
-
-use fe::{Instance, CipherText, SecretKey};
-use fuzzy_hashes::Nilsimsa;
-use rand::rngs::{StdRng, SysRng};
+use fe::{CipherText, Instance, SecretKey};
+//use fuzzy_hashes::Nilsimsa;
+use fe::traits::{FEInstance, FEPubKey, FESecretKey};
 use rand::SeedableRng;
-use fe::traits::{FEInstance, FESecretKey, FEPubKey};
+use rand::rngs::{StdRng, SysRng};
 use std::array;
 
 mod traits;
@@ -24,7 +22,7 @@ impl Comparator<NILSIMSA_CT_SIZE, i16, NilsimsaCipherText> for NilsimsaSecretKey
             Some(d) => {
                 println!("{:?}", d);
                 128 - ((NILSIMSA_CT_SIZE as i16) - (d as i16))
-            },
+            }
         }
     }
 }
@@ -32,9 +30,9 @@ impl Comparator<NILSIMSA_CT_SIZE, i16, NilsimsaCipherText> for NilsimsaSecretKey
 #[cfg(test)]
 mod tests {
     use super::*;
-    use traits::*;
     use proptest::prelude::*;
     use proptest::test_runner::{TestError, TestRunner};
+    use traits::*;
 
     // Size in bit of a nilsimsa hash
     const N: usize = 256;
@@ -50,11 +48,16 @@ mod tests {
     #[test]
     fn test_correctness() {
         let mut runner = TestRunner::default();
-        
+
         let result = runner.run(
             &two_random_bitvec(),
             |(secret_vec, secret_client_vec): ([u8; N], [u8; N])| {
-                let expected_score = 128 - secret_vec.iter().zip(secret_client_vec).map(|(b1, b2)| (*b1 as i16) * (b2 as i16)).sum::<i16>();
+                let expected_score = 128
+                    - secret_vec
+                        .iter()
+                        .zip(secret_client_vec)
+                        .map(|(b1, b2)| (*b1 as i16) * (b2 as i16))
+                        .sum::<i16>();
 
                 // Construct ciphertexts : concat hash and not(hash) for both hashes
                 let secret_vec_to_compare: [u8; NILSIMSA_CT_SIZE] = array::from_fn(|i| {
@@ -77,7 +80,7 @@ mod tests {
                 let instance = Instance::setup();
                 let pk = instance.public_key::<u8>();
                 let sk: NilsimsaSecretKey = instance.secret_key::<u8>(secret_vec_to_compare);
-                
+
                 // Encrypt the client vector
                 let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
                 let ct: NilsimsaCipherText = pk.encrypt(&mut rng, client_vec_to_compare);

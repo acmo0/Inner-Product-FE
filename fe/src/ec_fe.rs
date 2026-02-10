@@ -10,7 +10,7 @@ use rand::{
 };
 
 use crate::generic::{DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey, MskItem};
-use crate::traits::{FEInstance, FESecretKey, FEPubKey, FECipherText};
+use crate::traits::{FECipherText, FEInstance, FEPubKey, FESecretKey};
 
 // Type aliases (shared by both ec_fe.rs and ff_fe.rs)
 pub type Instance<const N: usize> = DdhFeInstance<N, Scalar, RistrettoPoint>;
@@ -120,7 +120,12 @@ impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
             .chain(&[-self.sx, -self.tx])
             .cloned()
             .collect();
-        let points: Vec<_> = ct.get_e().iter().chain(&[ct.get_c(), ct.get_d()]).cloned().collect();
+        let points: Vec<_> = ct
+            .get_e()
+            .iter()
+            .chain(&[ct.get_c(), ct.get_d()])
+            .cloned()
+            .collect();
 
         // Compute sum(E * xi) - C * sx - D * tx
         let ex = RistrettoPoint::multiscalar_mul(scalars, points);

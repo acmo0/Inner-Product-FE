@@ -24,8 +24,8 @@ pub mod traits;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::traits::*;
+    use super::*;
     use proptest::prelude::*;
     use proptest::test_runner::{TestError, TestRunner};
     use rand::{
