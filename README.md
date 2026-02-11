@@ -33,6 +33,29 @@ cargo test --no-default-features -F finite-field --release
 RUSTFALGS="-C target-cpu=native" cargo build --release
 ```
 
+## Run
+> Note : please follow the build step before
+
+Note that only the request to the authority from the compute server to generate a fresh instance with associated public key and secret keys for requested vectors is implemented.
+
+```sh
+# First populate a db made of random nilsimsa fuzzy hashes
+# By default : 10_000 fuzzy hashes
+python3 populate.py
+
+# Launch the authority server
+RUST_LOG=info ./target/release/instance-server 127.0.0.1:1234 
+
+# In another tty launch the compute server
+RUST_LOG=info ./target/release/compute-server 127.0.0.1:1337 127.0.0.1:1234 test_db.db 
+
+# In another tty, init a connection with the compute server
+# Note : this is only to trigger the exchanges between the compute and instance servers
+nc 127.0.0.1 1337
+# Then you should see in the logs the instance-server and
+# compute server exchange hashes and secret keys
+```
+
 ## Benchmarking
 
 | Implementation | Base crate       | Encryption time | Decryption time |
