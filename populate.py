@@ -2,7 +2,7 @@ import sqlite3
 import os
 
 DB_NAME = "test_db.db"
-POPULATION_SIZE = 256
+POPULATION_SIZE = 10_000
 
 if os.path.exists(DB_NAME):
 	os.remove(DB_NAME)

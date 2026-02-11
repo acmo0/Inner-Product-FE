@@ -8,14 +8,14 @@ use tokio::{
     net::{TcpListener, TcpStream},
 };
 
-use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
-use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE};
+use futures::StreamExt;
+use futures::sink::SinkExt;
+use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS, NILSIMSA_VECTOR_SIZE_BYTES};
 use messages::{GenerateInstanceRequest, GenerateInstanceResponse, HashComparisonRequest};
 use rusqlite::Connection;
 use rusqlite::named_params;
 use std::mem;
-use futures::sink::SinkExt;
-use futures::StreamExt;
+use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 #[derive(Debug)]
 pub struct Server {
@@ -24,7 +24,6 @@ pub struct Server {
     authority_addr: String,
 }
 
-const SERVER_MAX_LEN: usize = NILSIMSA_VECTOR_SIZE;
 const FH_SQL_QUERY: &str = "SELECT fh FROM fuzzy_hashes WHERE type == :hash_type";
 
 impl Server {
@@ -50,13 +49,15 @@ impl Server {
         Ok(vectors)
     }
 
-    async fn retrieve_secret_keys<const N: usize>(&self, vectors: Vec<FHVector<u8>>) -> Result<GenerateInstanceResponse<N>> {
-
+    async fn retrieve_secret_keys<const N: usize>(
+        &self,
+        vectors: &[FHVector<u8>],
+    ) -> Result<GenerateInstanceResponse<N>> {
         let mut authority_stream = TcpStream::connect(&self.authority_addr).await?;
         info!("Connection opened with authority");
 
         let mut writer = FramedWrite::new(&mut authority_stream, LengthDelimitedCodec::new());
-        let serialized = postcard::to_stdvec(&vectors)?;
+        let serialized = postcard::to_stdvec(vectors)?;
         writer.send(serialized.into()).await.unwrap();
         info!("Sended vectors to authority");
 
@@ -69,19 +70,6 @@ impl Server {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        info!("Loading fuzzy hashes....");
-        let mut nilsimsa_hashes = vec![];
-
-        match self.get_nilsimsa_hashes() {
-            Err(error) => return Err(error),
-            Ok(v) => nilsimsa_hashes = v,
-        }
-        info!("Loaded {} fuzzy hashes", nilsimsa_hashes.len());
-        
-        info!("Query authority server for secret keys");
-        self.retrieve_secret_keys::<NILSIMSA_VECTOR_SIZE>(nilsimsa_hashes).await?;
-        info!("Received pk/sk for fuzzy hashes");
-        
         loop {
             let mut s = match self.accept_conn().await {
                 Ok(stream) => stream,
@@ -91,8 +79,50 @@ impl Server {
                 }
             };
 
+            /*            info!("Loading client request");
+                        let mut reader = FramedRead::new(&mut s, LengthDelimitedCodec::new());
+                        let frame = reader.next().await.unwrap().unwrap();
+
+                        let requested_hash_type: HashComparisonRequest =
+                            postcard::from_bytes(&frame).expect("Failed to understand client request");
+            */
+            let requested_hash_type = HashComparisonRequest::NILSIMSA;
+            info!("Loading {:?} fuzzy hashes", requested_hash_type);
+
+            let hashes = match requested_hash_type {
+                HashComparisonRequest::NILSIMSA => match self.get_nilsimsa_hashes() {
+                    Err(error) => return Err(error),
+                    Ok(v) => v,
+                },
+            };
+
+            info!("Loaded {} fuzzy hashes", hashes.len());
+            info!("Query authority server for secret keys");
+            let keys = match requested_hash_type {
+                HashComparisonRequest::NILSIMSA => {
+                    let mut batches = vec![];
+                    for hashes_batch in hashes.chunks(NILSIMSA_VECTOR_SIZE_BITS - 1) {
+                        let compressed_response = self
+                            .retrieve_secret_keys::<NILSIMSA_VECTOR_SIZE_BITS>(hashes_batch)
+                            .await?;
+                        match compressed_response.decompress() {
+                            Ok(decompressed) => batches.push(decompressed),
+                            _ => return Err(anyhow!("Unable to retrieve vectors from authority")),
+                        }
+                    }
+                    batches
+                }
+            };
+
+            info!("Received pk/sk from authority");
+
             tokio::spawn(async move {
-                match handle_client(s).await {
+                let mut client_handler = ClientHandler {
+                    stream: s,
+                    keys: keys,
+                };
+
+                match client_handler.handle_client().await {
                     Ok(_) => {}
                     Err(error) => {
                         error!("Error while handling client")
@@ -112,17 +142,14 @@ impl Server {
     }
 }
 
-async fn handle_client(mut stream: TcpStream) -> Result<()> {
-    info!("Handling client");
+struct ClientHandler<const N: usize> {
+    stream: TcpStream,
+    keys: Vec<(PublicKey<N>, Vec<SecretKey<N>>)>,
+}
 
-    let mut buf = vec![];
-    stream.read_to_end(&mut buf).await?;
-
-    let requested_hash_type: HashComparisonRequest =
-        postcard::from_bytes(&buf).expect("Failed to understand client request");
-
-    match requested_hash_type {
-        HashComparisonRequest::NILSIMSA => {}
+impl<const N: usize> ClientHandler<N> {
+    pub async fn handle_client(&mut self) -> Result<()> {
+        info!("Handling client");
+        Ok(())
     }
-    Ok(())
 }

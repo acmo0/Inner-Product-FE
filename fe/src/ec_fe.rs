@@ -1,21 +1,27 @@
 #![allow(dead_code)]
 use core::array;
 
-use curve25519_dalek::ristretto::RistrettoPoint;
+use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::{Identity, MultiscalarMul};
 use rand::{
     CryptoRng, SeedableRng,
     rngs::{StdRng, SysRng},
 };
+use serde::{self, Deserialize, Serialize, Serializer, de::DeserializeOwned, ser::SerializeStruct};
+use serde_big_array::BigArray;
 
-use crate::generic::{DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey, MskItem};
+use crate::generic::{
+    CompressedDdhFeSecretKey, DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey,
+    MskItem,
+};
 use crate::traits::{FECipherText, FEInstance, FEPubKey, FESecretKey};
 
 // Type aliases (shared by both ec_fe.rs and ff_fe.rs)
 pub type Instance<const N: usize> = DdhFeInstance<N, Scalar, RistrettoPoint>;
 pub type PublicKey<const N: usize> = DdhFePublicKey<N, RistrettoPoint>;
 pub type SecretKey<const N: usize> = DdhFeSecretKey<N, Scalar, RistrettoPoint>;
+pub type CompressedSecretKey = CompressedDdhFeSecretKey<Scalar, CompressedRistretto, u8>;
 pub type CipherText<const N: usize> = DdhFeCiphertext<N, RistrettoPoint>;
 
 // Useful to get a random master secret key element
@@ -25,6 +31,57 @@ impl MskItem<Scalar> {
             s: Scalar::random(rng),
             t: Scalar::random(rng),
         }
+    }
+}
+
+impl<const N: usize> From<&SecretKey<N>> for CompressedSecretKey {
+    fn from(value: &SecretKey<N>) -> CompressedSecretKey {
+        let g = value.g.compress();
+        let x_bytes: Vec<u8> = (&value.x)
+            .map(|b| {
+                if b.eq(&Scalar::ZERO) {
+                    0
+                } else if b.eq(&Scalar::ONE) {
+                    1
+                } else {
+                    panic!("Cannot serialize vector");
+                }
+            })
+            .chunks_exact(8)
+            .map(|b| (0..8).map(|i| b[i] * (1 << (7 - i))).sum())
+            .collect();
+
+        CompressedSecretKey {
+            g: g,
+            sx: value.sx,
+            tx: value.tx,
+            x: x_bytes,
+        }
+    }
+}
+
+impl<const N: usize> TryFrom<&CompressedSecretKey> for SecretKey<N> {
+    type Error = ();
+
+    fn try_from(value: &CompressedSecretKey) -> Result<Self, Self::Error> {
+        if value.x.len() != N / 8 {
+            return Err(());
+        }
+
+        let g = match value.g.decompress() {
+            Some(p) => p,
+            None => return Err(()),
+        };
+
+        let x: [Scalar; N] =
+            array::from_fn(|i| Scalar::from(1 & (value.x[i / 8] >> (7 - (i % 8)))));
+
+        Ok(SecretKey {
+            g: g,
+            sx: value.sx,
+            tx: value.tx,
+            x: x,
+        })
     }
 }
 

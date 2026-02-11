@@ -1,4 +1,4 @@
-use serde::{self, Deserialize, Serialize, de::DeserializeOwned};
+use serde::{self, Deserialize, Serialize, Serializer, de::DeserializeOwned, ser::SerializeStruct};
 use serde_big_array::BigArray;
 
 #[derive(Debug, Clone)]
@@ -49,5 +49,24 @@ pub struct DdhFeInstance<const N: usize, T, U> {
     pub(crate) g: U,
     pub(crate) h: U,
     pub(crate) msk: [MskItem<T>; N],
+    pub(crate) mpk: [U; N],
+}
+
+/*
+    "Compressed" variants to improve protocol efficiency
+*/
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompressedDdhFeSecretKey<T, U, V> {
+    pub(crate) g: U,
+    pub(crate) sx: T,
+    pub(crate) tx: T,
+    pub(crate) x: Vec<V>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompressedDdhFePublicKey<const N: usize, U> {
+    pub(crate) g: U,
+    pub(crate) h: U,
+    #[serde(with = "BigArray")]
     pub(crate) mpk: [U; N],
 }
