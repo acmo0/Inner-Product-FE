@@ -7,10 +7,13 @@ use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
 };
-
+use tokio_stream::StreamExt;
+use futures::sink::SinkExt;
 use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE};
 use messages::{GenerateInstanceRequest, GenerateInstanceResponse};
 use std::mem;
+
+use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 #[derive(Debug)]
 pub struct Server {
@@ -35,8 +38,11 @@ impl Server {
             };
 
             tokio::spawn(async move {
-                match handle_client(s).await {
-                    Ok(_) => {}
+                let mut client_handler = ClientHandler{
+                    stream: s
+                };
+                match client_handler.handle_client().await {
+                    Ok(_) => {info!("Closing connection with client")}
                     Err(error) => {
                         error!("Error while handling client")
                     }
@@ -55,28 +61,54 @@ impl Server {
     }
 }
 
-async fn handle_client(mut stream: TcpStream) -> Result<()> {
-    info!("Handling client");
-    let mut buf = vec![];
-    stream.read_to_end(&mut buf).await?;
+struct ClientHandler {
+    stream: TcpStream
+}
 
-    let incomming_vectors: GenerateInstanceRequest<u8> =
-        postcard::from_bytes(&buf).expect("Failed to understand client request");
-
-    match check_incomming_vectors(&incomming_vectors) {
-        Ok(_) => {}
-        Err(error) => return Err(error),
+impl ClientHandler {
+    async fn read_frame(&mut self) -> Result<Vec<u8>> {
+        let mut reader = FramedRead::new(&mut self.stream, LengthDelimitedCodec::new());
+        let frame = reader.next().await.unwrap().unwrap().to_vec();
+        Ok(frame)
     }
 
-    match incomming_vectors[0] {
-        FHVector::<_>::NilsimsaVector(_) => {
-            let response = generate_parameters_nilsimsa(incomming_vectors);
-            stream
-                .write_all(postcard::to_allocvec(&response)?.as_slice())
-                .await?;
+    async fn write_frame(&mut self, bytes: Vec<u8>) -> Result<()> {
+        let mut writer = FramedWrite::new(&mut self.stream, LengthDelimitedCodec::new());
+        writer.send(bytes.into()).await?;
+        Ok(())
+    }
+
+    async fn handle_client(&mut self) -> Result<()> {
+        info!("Handling client");
+        
+        let frame = self.read_frame().await?;
+
+        let mut incomming_vectors: GenerateInstanceRequest<u8> = match postcard::from_bytes(&frame) {
+            Ok(v) => v,
+            Err(error) => {
+                error!("Unable to understand client payload");
+                return Err(error.into());
+            }
+        };
+
+        info!("Received {} vectors from client", incomming_vectors.len());
+        /*let incomming_vectors: GenerateInstanceRequest<u8> =
+            postcard::from_bytes(&buf).expect("Failed to understand client request");
+    */
+        match check_incomming_vectors(&incomming_vectors) {
+            Ok(_) => {}
+            Err(error) => return Err(error),
         }
+
+        match incomming_vectors[0] {
+            FHVector::<_>::NilsimsaVector(_) => {
+                let response = generate_parameters_nilsimsa(incomming_vectors);
+                self.write_frame(postcard::to_stdvec(&response)?).await?;
+                info!("Sended public key/secret keys to client")
+            }
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 fn check_incomming_vectors(incomming_vectors: &GenerateInstanceRequest<u8>) -> Result<()> {
