@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.101"
 fe = { version = "0.1.0", path = "../fe" }
 fuzzy_hashes = { version = "0.1.0", path = "../fuzzy_hashes" }
 serde = { version = "1.0.228", features = ["alloc", "serde_derive"] }

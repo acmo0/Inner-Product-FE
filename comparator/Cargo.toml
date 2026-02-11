@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 fuzzy_hashes = { path = "../fuzzy_hashes/" }
 fe = { path = "../fe/" }
-rand = "0.10.0-rc.8"
 
 [dev-dependencies]
 proptest = "1.10.0"
+rand = "0.10.0-rc.8"

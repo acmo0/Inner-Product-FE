@@ -3,10 +3,9 @@ use crate::compute_server::Server;
 
 use anyhow::Result;
 use clap::Parser;
-use log::{error, info};
+use log::info;
 use rusqlite::Connection;
 use tokio::net::TcpListener;
-/// Search for a pattern in a file and display the lines that contain it.
 
 #[derive(Parser)]
 struct Cli {

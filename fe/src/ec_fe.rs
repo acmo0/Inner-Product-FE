@@ -8,8 +8,6 @@ use rand::{
     CryptoRng, SeedableRng,
     rngs::{StdRng, SysRng},
 };
-use serde::{self, Deserialize, Serialize, Serializer, de::DeserializeOwned, ser::SerializeStruct};
-use serde_big_array::BigArray;
 
 use crate::generic::{
     CompressedDdhFeSecretKey, DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey,
@@ -17,27 +15,28 @@ use crate::generic::{
 };
 use crate::traits::{FECipherText, FEInstance, FEPubKey, FESecretKey};
 
-// Type aliases (shared by both ec_fe.rs and ff_fe.rs)
+/*
+    Type aliases (shared by both ec_fe.rs and ff_fe.rs)
+*/
+/// FE instance over Ristretto255 curve for arbitrary vector size.
 pub type Instance<const N: usize> = DdhFeInstance<N, Scalar, RistrettoPoint>;
+/// FE public key over Ristretto255 curve for arbitrary vector size.
 pub type PublicKey<const N: usize> = DdhFePublicKey<N, RistrettoPoint>;
+/// FE secret key over Ristretto255 curve for arbitrary vector size.
 pub type SecretKey<const N: usize> = DdhFeSecretKey<N, Scalar, RistrettoPoint>;
+/// FE compressed secret key over Ristretto255 curve for arbitrary vector size. This is done to
+/// (greatly) improve the efficiency of the network transmission of the secret key structure.
 pub type CompressedSecretKey = CompressedDdhFeSecretKey<Scalar, CompressedRistretto, u8>;
+/// FE ciphertext over Ristretto255 curve for arbitrary vector size.
 pub type CipherText<const N: usize> = DdhFeCiphertext<N, RistrettoPoint>;
 
-// Useful to get a random master secret key element
-impl MskItem<Scalar> {
-    pub(crate) fn get_rand<R: CryptoRng + ?Sized>(rng: &mut R) -> Self {
-        MskItem {
-            s: Scalar::random(rng),
-            t: Scalar::random(rng),
-        }
-    }
-}
-
+/// Implementation of From and TryFrom to allow easy compression/decompression
+/// between a CompressedSecretKey and a SecretKey
 impl<const N: usize> From<&SecretKey<N>> for CompressedSecretKey {
     fn from(value: &SecretKey<N>) -> CompressedSecretKey {
         let g = value.g.compress();
-        let x_bytes: Vec<u8> = (&value.x)
+        let x_bytes: Vec<u8> = value
+            .x
             .map(|b| {
                 if b.eq(&Scalar::ZERO) {
                     0
@@ -52,7 +51,7 @@ impl<const N: usize> From<&SecretKey<N>> for CompressedSecretKey {
             .collect();
 
         CompressedSecretKey {
-            g: g,
+            g,
             sx: value.sx,
             tx: value.tx,
             x: x_bytes,
@@ -60,6 +59,8 @@ impl<const N: usize> From<&SecretKey<N>> for CompressedSecretKey {
     }
 }
 
+/// Implementation of From and TryFrom to allow easy compression/decompression
+/// between a CompressedSecretKey and a SecretKey
 impl<const N: usize> TryFrom<&CompressedSecretKey> for SecretKey<N> {
     type Error = ();
 
@@ -77,11 +78,21 @@ impl<const N: usize> TryFrom<&CompressedSecretKey> for SecretKey<N> {
             array::from_fn(|i| Scalar::from(1 & (value.x[i / 8] >> (7 - (i % 8)))));
 
         Ok(SecretKey {
-            g: g,
+            g,
             sx: value.sx,
             tx: value.tx,
-            x: x,
+            x,
         })
+    }
+}
+
+// Useful to get a random master secret key element
+impl MskItem<Scalar> {
+    pub(crate) fn get_rand<R: CryptoRng + ?Sized>(rng: &mut R) -> Self {
+        MskItem {
+            s: Scalar::random(rng),
+            t: Scalar::random(rng),
+        }
     }
 }
 
@@ -169,6 +180,7 @@ impl<const N: usize> FECipherText<RistrettoPoint> for CipherText<N> {
         &self.e
     }
 }
+
 impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
     fn decrypt(&self, ct: impl FECipherText<RistrettoPoint>, bound: u16) -> Option<u16> {
         let scalars: Vec<_> = self

@@ -2,7 +2,7 @@ mod instance_server;
 use crate::instance_server::Server;
 
 use anyhow::Result;
-use log::{error, info};
+use log::info;
 use tokio::net::TcpListener;
 
 #[tokio::main]

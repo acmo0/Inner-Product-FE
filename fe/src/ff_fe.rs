@@ -12,8 +12,11 @@ use rand::{
 };
 
 use crate::consts;
-use crate::generic::{DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey, MskItem};
-use crate::traits::{FEInstance, FEPrivKey, FEPubKey};
+use crate::generic::{
+    CompressedDdhFeSecretKey, DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey,
+    MskItem,
+};
+use crate::traits::{FECipherText, FEInstance, FEPubKey, FESecretKey};
 
 lazy_static::lazy_static! {
     static ref DH15_PRIME: Natural = Natural::from_limbs_desc(&consts::DH15_PRIME_LIMBS);
@@ -33,11 +36,53 @@ impl MskItem<Natural> {
     }
 }
 
-// Type aliases (shared by both ec_fe.rs and ff_fe.rs)
+/*
+    Type aliases (shared by both ec_fe.rs and ff_fe.rs)
+*/
+/// FE instance over Diffie Hellman group n°15 for arbitrary vector size.
 pub type Instance<const N: usize> = DdhFeInstance<N, Natural, Natural>;
+/// FE public over Diffie Hellman group n°15 for arbitrary vector size.
 pub type PublicKey<const N: usize> = DdhFePublicKey<N, Natural>;
+/// FE secret key over Diffie Hellman group n°15 for arbitrary vector size.
 pub type SecretKey<const N: usize> = DdhFeSecretKey<N, Natural, Natural>;
+/// FE compressed secret key over Diffie Hellman group n°15 for arbitrary vector size.
+/// This is just the secret key when working over finite field, but it is implemented
+/// to allow transparent usage when swaping to the elliptic curve based-fe of the crate.
+pub type CompressedSecretKey = CompressedDdhFeSecretKey<Natural, Natural, Natural>;
+/// FE ciphertext over Diffie Hellman group n°15 for arbitrary vector size.
 pub type CipherText<const N: usize> = DdhFeCiphertext<N, Natural>;
+
+/// Implementation of From and TryFrom to allow easy compression/decompression
+/// between a CompressedSecretKey and a SecretKey. This has no effect in the case
+/// of finite field based FE, but implemented for compatibility with Ristretto255
+/// based FE of the crate.
+impl<const N: usize> From<&SecretKey<N>> for CompressedSecretKey {
+    fn from(value: &SecretKey<N>) -> CompressedSecretKey {
+        CompressedSecretKey {
+            g: value.g.clone(),
+            sx: value.sx.clone(),
+            tx: value.tx.clone(),
+            x: value.x.to_vec(),
+        }
+    }
+}
+
+impl<const N: usize> TryFrom<&CompressedSecretKey> for SecretKey<N> {
+    type Error = ();
+
+    fn try_from(value: &CompressedSecretKey) -> Result<Self, Self::Error> {
+        if value.x.len() == N {
+            Ok(SecretKey {
+                g: value.g.clone(),
+                sx: value.sx.clone(),
+                tx: value.tx.clone(),
+                x: value.x.clone().try_into().unwrap(),
+            })
+        } else {
+            Err(())
+        }
+    }
+}
 
 /*
     Implements traits defined in traits.rs
@@ -122,20 +167,34 @@ where
     }
 }
 
-impl<const N: usize> FEPrivKey<N, Natural, u16> for SecretKey<N> {
-    fn decrypt(&self, ct: CipherText<N>, bound: u16) -> Option<u16> {
-        let ex =
-            ct.e.iter()
-                .zip(self.x.clone())
-                .fold(Natural::const_from(1), |acc, (ei, xi)| {
-                    acc.mod_mul(ei.mod_pow(xi, &*DH15_PRIME), &*DH15_PRIME)
-                })
-                .mod_mul(
-                    ct.c.mod_pow(&self.sx, &*DH15_PRIME)
-                        .mod_mul(ct.d.mod_pow(&self.tx, &*DH15_PRIME), &*DH15_PRIME)
-                        .mod_pow(&*DH15_PRIME - consts::CST2, &*DH15_PRIME),
-                    &*DH15_PRIME,
-                );
+impl<const N: usize> FECipherText<Natural> for CipherText<N> {
+    fn get_c(&self) -> Natural {
+        self.c.clone()
+    }
+    fn get_d(&self) -> Natural {
+        self.d.clone()
+    }
+    fn get_e(&self) -> &[Natural] {
+        &self.e
+    }
+}
+
+impl<const N: usize> FESecretKey<N, Natural, u16> for SecretKey<N> {
+    fn decrypt(&self, ct: impl FECipherText<Natural>, bound: u16) -> Option<u16> {
+        let ex = ct
+            .get_e()
+            .iter()
+            .zip(self.x.clone())
+            .fold(Natural::const_from(1), |acc, (ei, xi)| {
+                acc.mod_mul(ei.mod_pow(xi, &*DH15_PRIME), &*DH15_PRIME)
+            })
+            .mod_mul(
+                ct.get_c()
+                    .mod_pow(&self.sx, &*DH15_PRIME)
+                    .mod_mul(ct.get_d().mod_pow(&self.tx, &*DH15_PRIME), &*DH15_PRIME)
+                    .mod_pow(&*DH15_PRIME - consts::CST2, &*DH15_PRIME),
+                &*DH15_PRIME,
+            );
 
         let mut i = 0u16;
         let mut p = Natural::from(1u8);

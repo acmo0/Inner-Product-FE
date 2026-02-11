@@ -1,3 +1,5 @@
+#![warn(missing_docs, rust_2018_idioms)]
+
 #[cfg(all(feature = "finite-field", feature = "elliptic-curve"))]
 compile_error!(
     "Can't use both `elliptic-curve` and `finite-field` features. They are mutualy exclusive."

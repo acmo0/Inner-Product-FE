@@ -1,27 +1,29 @@
-use fe::{CipherText, Instance, SecretKey};
-//use fuzzy_hashes::Nilsimsa;
-use fe::traits::{FEInstance, FEPubKey, FESecretKey};
-use rand::SeedableRng;
-use rand::rngs::{StdRng, SysRng};
-use std::array;
+#![warn(missing_docs, rust_2018_idioms)]
+
+//! Module containing the implementation of the comparison
+//! functions used for any implemented fuzzy hash.
+
+use fe::traits::FESecretKey;
+use fe::{CipherText, SecretKey};
+use fuzzy_hashes::NILSIMSA_VECTOR_SIZE_BITS;
 
 mod traits;
 use traits::Comparator;
 
-const NILSIMSA_CT_SIZE: usize = 512;
+/// Type alias for a FE ciphertext that contains an encrypted nilsimsa vector.
+type NilsimsaCipherText = CipherText<NILSIMSA_VECTOR_SIZE_BITS>;
+/// Type alias for a FE secret key that can process a nilsimsa vector.
+type NilsimsaSecretKey = SecretKey<NILSIMSA_VECTOR_SIZE_BITS>;
 
-type NilsimsaCipherText = CipherText<NILSIMSA_CT_SIZE>;
-type NilsimsaSecretKey = SecretKey<NILSIMSA_CT_SIZE>;
-
-impl Comparator<NILSIMSA_CT_SIZE, i16, NilsimsaCipherText> for NilsimsaSecretKey {
+impl Comparator<NILSIMSA_VECTOR_SIZE_BITS, i16, NilsimsaCipherText> for NilsimsaSecretKey {
     fn compare(&self, encrypted_vector: NilsimsaCipherText) -> i16 {
-        let dec = self.decrypt(encrypted_vector, NILSIMSA_CT_SIZE as u16);
+        let dec = self.decrypt(encrypted_vector, NILSIMSA_VECTOR_SIZE_BITS as u16);
 
         match dec {
             None => panic!("Something went wrong, unable to retrieve the hamming distance"),
             Some(d) => {
                 println!("{:?}", d);
-                128 - ((NILSIMSA_CT_SIZE as i16) - (d as i16))
+                128 - ((NILSIMSA_VECTOR_SIZE_BITS as i16) - (d as i16))
             }
         }
     }
@@ -30,8 +32,13 @@ impl Comparator<NILSIMSA_CT_SIZE, i16, NilsimsaCipherText> for NilsimsaSecretKey
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fe::Instance;
+    use fe::traits::{FEInstance, FEPubKey};
     use proptest::prelude::*;
     use proptest::test_runner::{TestError, TestRunner};
+    use rand::SeedableRng;
+    use rand::rngs::{StdRng, SysRng};
+    use std::array;
     use traits::*;
 
     // Size in bit of a nilsimsa hash
@@ -60,7 +67,7 @@ mod tests {
                         .sum::<i16>();
 
                 // Construct ciphertexts : concat hash and not(hash) for both hashes
-                let secret_vec_to_compare: [u8; NILSIMSA_CT_SIZE] = array::from_fn(|i| {
+                let secret_vec_to_compare: [u8; NILSIMSA_VECTOR_SIZE_BITS] = array::from_fn(|i| {
                     if i < N {
                         secret_vec[i]
                     } else {
@@ -68,7 +75,7 @@ mod tests {
                     }
                 });
 
-                let client_vec_to_compare: [u8; NILSIMSA_CT_SIZE] = array::from_fn(|i| {
+                let client_vec_to_compare: [u8; NILSIMSA_VECTOR_SIZE_BITS] = array::from_fn(|i| {
                     if i < N {
                         secret_client_vec[i]
                     } else {

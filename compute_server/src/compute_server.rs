@@ -1,20 +1,14 @@
 use anyhow::{Error, Result, anyhow};
-use fe::traits::FEInstance;
-use fe::{Instance, PublicKey, SecretKey};
+use fe::{PublicKey, SecretKey};
 use log::{error, info};
-use tokio::io::AsyncReadExt;
-use tokio::{
-    io::AsyncWriteExt,
-    net::{TcpListener, TcpStream},
-};
+use tokio::net::{TcpListener, TcpStream};
 
 use futures::StreamExt;
 use futures::sink::SinkExt;
-use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS, NILSIMSA_VECTOR_SIZE_BYTES};
-use messages::{GenerateInstanceRequest, GenerateInstanceResponse, HashComparisonRequest};
+use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
+use messages::{GenerateInstanceResponse, HashComparisonRequest};
 use rusqlite::Connection;
 use rusqlite::named_params;
-use std::mem;
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 #[derive(Debug)]
@@ -117,15 +111,12 @@ impl Server {
             info!("Received pk/sk from authority");
 
             tokio::spawn(async move {
-                let mut client_handler = ClientHandler {
-                    stream: s,
-                    keys: keys,
-                };
+                let mut client_handler = ClientHandler { stream: s, keys };
 
                 match client_handler.handle_client().await {
                     Ok(_) => {}
                     Err(error) => {
-                        error!("Error while handling client")
+                        error!("Error while handling client : {}", error)
                     }
                 }
             });
@@ -133,11 +124,9 @@ impl Server {
     }
 
     async fn accept_conn(&mut self) -> Result<TcpStream> {
-        loop {
-            match self.listener.accept().await {
-                Ok((sock, _)) => return Ok(sock),
-                Err(e) => return Err(Error::from(e)),
-            }
+        match self.listener.accept().await {
+            Ok((sock, _)) => Ok(sock),
+            Err(e) => Err(Error::from(e)),
         }
     }
 }
