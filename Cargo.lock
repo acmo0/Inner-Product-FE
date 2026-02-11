@@ -286,7 +286,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "compute_server"
+name = "compute-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",

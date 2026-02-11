@@ -1,5 +1,37 @@
 #![warn(missing_docs, rust_2018_idioms)]
 
+//! Crate that implements functionnal encryption over :
+//! * Ristretto255 (feature `elliptic-curve`, enabled by default)
+//! * Diffie Hellman group n°15 (feature `finite-field`, disabled by default)
+//!
+//! Here is a basic example of how it's working :
+//!
+//! ```rust
+//! use fe::traits::{FEInstance, FEPubKey, FESecretKey};
+//! use fe::{Instance};
+//! use rand::{
+//!     SeedableRng,
+//!     rngs::{StdRng, SysRng},
+//! };
+//!
+//! // The vectors you want to encrypt
+//! let v1: [u8; 4] = [1, 2, 3, 4];
+//! let v2: [u8; 4] = [4, 3, 2, 1];
+//! // Used for encryption
+//! let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
+//!
+//! let instance = Instance::<4>::setup();
+//! // We want to encrypt vectors of u8
+//! let pk = instance.public_key::<u8>();
+//!
+//! let sk = instance.secret_key(v1);
+//! // Encrypt v2
+//! let encrypted = pk.encrypt(&mut rng, v2);
+//! // Decrypt and bound the result by let say 1000. If the scalar
+//! // product of v1 and v2 exceed that bound then you'll get an error
+//! let scalar_product = sk.decrypt(encrypted, 1000).unwrap();
+//! assert_eq!(scalar_product, (0..4).map(|i| (v1[i] as u16) * (v2[i] as u16)).sum());
+//! ```
 #[cfg(all(feature = "finite-field", feature = "elliptic-curve"))]
 compile_error!(
     "Can't use both `elliptic-curve` and `finite-field` features. They are mutualy exclusive."

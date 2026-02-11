@@ -2,13 +2,59 @@
 
 //! Module containing the implementation of the comparison
 //! functions used for any implemented fuzzy hash.
-
+//!
+//! Here is a basic example of how it's working :
+//!
+//! ```rust
+//! use std::array;
+//! use fe::traits::{FEInstance, FEPubKey, FESecretKey};
+//! use fe::{Instance};
+//! use fuzzy_hashes::FHVector;
+//! use comparator::Comparator;
+//! use rand::{
+//!     SeedableRng,
+//!     rngs::{StdRng, SysRng},
+//! };
+//!
+//! // The vectors you want to compare (let say vectors derived from Nilsimsa)
+//! let h1: [u8; 256] = array::from_fn(|i| (i % 2) as u8);
+//! let h2: [u8; 256] = array::from_fn(|i| 1 - (i % 2) as u8);
+//!
+//! // Concat each vector and its opposite
+//! let v1: [u8; 512] = array::from_fn(|i| {
+//!    if i < 256 {
+//!        h1[i]
+//!    } else {
+//!        1 - h1[i%256]
+//!    }
+//! });
+//! let v2: [u8; 512] = array::from_fn(|i| {
+//!    if i < 256 {
+//!        h2[i]
+//!    } else {
+//!        1 - h2[i%256]
+//!    }
+//! });
+//!
+//! // Used for encryption
+//! let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
+//!
+//! let instance = Instance::<512>::setup();
+//! // We want to encrypt vectors of u8
+//! let pk = instance.public_key::<u8>();
+//!
+//! // Get a secret key for v1
+//! let sk = instance.secret_key(v1);
+//! // Encrypt v2
+//! let encrypted = pk.encrypt(&mut rng, v2);
+//! let score = sk.compare(encrypted);
+//! ```
 use fe::traits::FESecretKey;
 use fe::{CipherText, SecretKey};
 use fuzzy_hashes::NILSIMSA_VECTOR_SIZE_BITS;
 
 mod traits;
-use traits::Comparator;
+pub use traits::Comparator;
 
 /// Type alias for a FE ciphertext that contains an encrypted nilsimsa vector.
 type NilsimsaCipherText = CipherText<NILSIMSA_VECTOR_SIZE_BITS>;

@@ -1,9 +1,37 @@
-# Inner Product Functionnal Encryption
+# Fuzzy Hashes Comparison over the encrypted domain
 
-This repository aims to provide multiple implementation of the first scheme depicted in the paper [Fully Secure Functional Encryption for Inner Products, from Standard Assumptions](https://eprint.iacr.org/2015/608).
+## Structure
+### Libs
+- [benches](./benches) : benchmark for the functionnal encryption implementation
+- [comparator](./comparator) : crate to implement comparison function for a fuzzy hash over the encrypted domain
+- [fe](./fe) : functionnal encryption for vectors (over EC and FF)
+- [fuzzy_hashes](./fuzzy_hashes) : implementation and constants related to fuzzy hashes themself
+- [messages](./messages) : messages exchanged between the actors
+### Bins
+- [compute-server](./compute-server) : code of the compute server
+- [instance-server](./instance-server) : code of the instance server
 
-Since the scheme is defined for any prime-order cyclic group, a version over the Diffie-Hellman group n°15 from [RFC 3526](https://datatracker.ietf.org/doc/html/rfc3526). This has been implemented using [Malachite crate](https://crates.io/crates/malachite) (in [`fe/src/ff_fe.rs`](./fe/src/ff_fe.rs)).
-Another version based on the Ristretto255 elliptic curve is also implemented in [`fe/src/ec_fe.rs`](./fe/src/ec_fe.rs), which **is way faster**.
+## Doc
+```
+git clone https://github.com/acmo0/Inner-Product-FE.git
+cd Inner-Product-FE
+cargo doc --open --no-deps
+```
+
+## Test
+> This will take a while to test (few minutes using elliptic-curve feature of the crate fe, few tens of munites for the finite-field feature of the crate fe)
+```
+# Test ec implementation
+cargo test --release
+# Test finite field implementation
+cd fe
+cargo test --no-default-features -F finite-field --release
+```
+
+## Build
+```sh
+RUSTFALGS="-C target-cpu=native" cargo build --release
+```
 
 ## Benchmarking
 
