@@ -68,8 +68,7 @@ impl Comparator<NILSIMSA_VECTOR_SIZE_BITS, i16, NilsimsaCipherText> for Nilsimsa
         match dec {
             None => panic!("Something went wrong, unable to retrieve the hamming distance"),
             Some(d) => {
-                println!("{:?}", d);
-                128 - ((NILSIMSA_VECTOR_SIZE_BITS as i16) - (d as i16))
+                128 - (((NILSIMSA_VECTOR_SIZE_BITS >> 1 )as i16) - (d as i16))
             }
         }
     }

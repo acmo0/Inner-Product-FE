@@ -1,15 +1,20 @@
 use anyhow::{Error, Result, anyhow};
 use fe::{PublicKey, SecretKey};
-use log::{error, info};
+use log::{debug, error, info};
 use tokio::net::{TcpListener, TcpStream};
 
+use futures::SinkExt;
 use futures::StreamExt;
-use futures::sink::SinkExt;
 use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
-use messages::{GenerateInstanceResponse, HashComparisonRequest};
+use messages::{
+    EncryptionRequest, EncryptionResponse, GenerateInstanceResponse, HashComparisonRequest,
+};
 use rusqlite::Connection;
 use rusqlite::named_params;
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
+
+use comparator::Comparator;
+
 
 #[derive(Debug)]
 pub struct Server {
@@ -73,14 +78,13 @@ impl Server {
                 }
             };
 
-            /*            info!("Loading client request");
-                        let mut reader = FramedRead::new(&mut s, LengthDelimitedCodec::new());
-                        let frame = reader.next().await.unwrap().unwrap();
+            info!("Loading client request");
+            let mut reader = FramedRead::new(&mut s, LengthDelimitedCodec::new());
+            let frame = reader.next().await.unwrap().unwrap();
 
-                        let requested_hash_type: HashComparisonRequest =
-                            postcard::from_bytes(&frame).expect("Failed to understand client request");
-            */
-            let requested_hash_type = HashComparisonRequest::NILSIMSA;
+            let requested_hash_type: HashComparisonRequest =
+                postcard::from_bytes(&frame).expect("Failed to understand client request");
+
             info!("Loading {:?} fuzzy hashes", requested_hash_type);
 
             let hashes = match requested_hash_type {
@@ -111,7 +115,11 @@ impl Server {
             info!("Received pk/sk from authority");
 
             tokio::spawn(async move {
-                let mut client_handler = ClientHandler { stream: s, keys };
+                let mut client_handler = ClientHandler {
+                    stream: s,
+                    hash_type: requested_hash_type,
+                    keys,
+                };
 
                 match client_handler.handle_client().await {
                     Ok(_) => {}
@@ -133,11 +141,80 @@ impl Server {
 
 struct ClientHandler<const N: usize> {
     stream: TcpStream,
+    hash_type: HashComparisonRequest,
     keys: Vec<(PublicKey<N>, Vec<SecretKey<N>>)>,
 }
 
-impl<const N: usize> ClientHandler<N> {
+impl ClientHandler<NILSIMSA_VECTOR_SIZE_BITS> {
+    /// The protocol is using framed content, encoded by prefixing the length of the payload
+    /// This reads an entire frame and returns what the readed frame.
+    async fn read_frame(&mut self) -> Result<Vec<u8>> {
+        let mut reader = FramedRead::new(&mut self.stream, LengthDelimitedCodec::new());
+        let frame = reader.next().await.unwrap().unwrap().to_vec();
+        Ok(frame)
+    }
+
+    /// The protocol is using framed content, encoded by prefixing the length of the payload
+    /// This write an entire frame made of the given bytes.
+    async fn write_frame(&mut self, bytes: Vec<u8>) -> Result<()> {
+        let mut writer = FramedWrite::new(&mut self.stream, LengthDelimitedCodec::new());
+        writer.send(bytes.into()).await?;
+        Ok(())
+    }
+
     pub async fn handle_client(&mut self) -> Result<()> {
+        // Split between read and write
+        let (mut rx, mut tx) = self.stream.split();
+
+        // Init framed read/write
+        let mut writer = FramedWrite::new(&mut tx, LengthDelimitedCodec::new());
+        let mut reader = FramedRead::new(&mut rx, LengthDelimitedCodec::new());
+
+        let mut score: i16 = i16::MIN;
+
+        for (pk, sks) in &self.keys {
+            let message = match self.hash_type {
+                HashComparisonRequest::NILSIMSA => {
+                    EncryptionRequest::<NILSIMSA_VECTOR_SIZE_BITS, i16> {
+                        pk: Some(pk.clone()),
+                        similarity_score: Some(score),
+                    }
+                }
+            };
+
+            debug!("Sending PK to client");
+            writer.send(postcard::to_stdvec(&message)?.into()).await?;
+
+            let encrypted_vector = match self.hash_type {
+                HashComparisonRequest::NILSIMSA => postcard::from_bytes::<EncryptionResponse<NILSIMSA_VECTOR_SIZE_BITS>>(reader.next().await.unwrap().unwrap().to_vec().as_slice())?,
+            };
+
+            let ct = match encrypted_vector {
+                EncryptionResponse::<_>::EncryptedVector(ct) => ct,
+                EncryptionResponse::<_>::EndOfComparison => break,
+            };
+
+            
+            score = i16::MIN;
+            for sk in sks {
+                let tmp_score = sk.compare(ct.clone());
+                if tmp_score > score {
+                    score = tmp_score;
+                }
+            }
+        }
+
+        // Send to client the "end of the db"
+        let message = match self.hash_type {
+            HashComparisonRequest::NILSIMSA => {
+                EncryptionRequest::<NILSIMSA_VECTOR_SIZE_BITS, i16> {
+                    pk: None,
+                    similarity_score: Some(score),
+                }
+            }
+        };
+        writer.send(postcard::to_stdvec(&message)?.into()).await?;
+        
         info!("Handling client");
         Ok(())
     }

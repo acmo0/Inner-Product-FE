@@ -2,9 +2,15 @@
 //! Module containing implementation of fuzzy hashes and their related constants.
 
 use core::array;
+use core::array::TryFromSliceError;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_big_array::BigArray;
 use std::fmt::Debug;
+use std::ops::BitAnd;
+use std::ops::Shr;
+
+mod nilsimsa;
+pub use nilsimsa::Nilsimsa;
 
 /// Length of a Nilsimsa fuzzy hash
 pub const NILSIMSA_FH_SIZE_BYTES: usize = 32;
@@ -22,6 +28,22 @@ pub enum FHVector<T: Serialize + DeserializeOwned> {
     /// Nilsimsa vector variant
     #[serde(with = "BigArray")]
     NilsimsaVector([T; NILSIMSA_VECTOR_SIZE_BYTES]),
+}
+
+impl FHVector<u8> {
+    /// Convert a byte vector to a bit vector
+    pub fn to_bits<const N: usize>(&self) -> Result<[u8; N], TryFromSliceError> {
+        let vector = match self {
+            Self::NilsimsaVector(v) => v,
+        };
+
+        vector
+            .iter()
+            .flat_map(|b| -> [u8; 8] { array::from_fn(|i| 1u8 & (b >> (7 - i))) })
+            .collect::<Vec<u8>>()
+            .as_slice()
+            .try_into()
+    }
 }
 
 /*

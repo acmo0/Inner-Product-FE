@@ -8,6 +8,7 @@
 - [fuzzy_hashes](./fuzzy_hashes) : implementation and constants related to fuzzy hashes themself
 - [messages](./messages) : messages exchanged between the actors
 ### Bins
+- [client](./client) : code of the client
 - [compute-server](./compute-server) : code of the compute server
 - [instance-server](./instance-server) : code of the instance server
 
@@ -50,10 +51,7 @@ RUST_LOG=info ./target/release/instance-server 127.0.0.1:1234
 RUST_LOG=info ./target/release/compute-server 127.0.0.1:1337 127.0.0.1:1234 test_db.db 
 
 # In another tty, init a connection with the compute server
-# Note : this is only to trigger the exchanges between the compute and instance servers
-nc 127.0.0.1 1337
-# Then you should see in the logs the instance-server and
-# compute server exchange hashes and secret keys
+RUST_LOG=info ./target/release/client 127.0.0.1:1337 /path/to/a/file/to/hash
 ```
 
 ## Benchmarking

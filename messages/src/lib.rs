@@ -3,7 +3,7 @@
 //! Module containing all the messages exchanged over the network
 // between the Authority, the Compute Server and the Client.
 use anyhow::{Error, Result, anyhow};
-use fe::{CompressedSecretKey, PublicKey, SecretKey};
+use fe::{CipherText, CompressedSecretKey, PublicKey, SecretKey};
 use fuzzy_hashes::FHVector;
 use serde::{Deserialize, Serialize};
 
@@ -57,4 +57,22 @@ impl<const N: usize> From<(PublicKey<N>, Vec<SecretKey<N>>)> for GenerateInstanc
 pub enum HashComparisonRequest {
     /// Indicate that the client wants to compare Nilsimsa fuzzy hash.
     NILSIMSA,
+}
+
+/// Request to the client to encrypt its hash using
+/// the given public key in the request
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EncryptionRequest<const N: usize, T> {
+    /// Field containing the public key to encrypt the fuzzy hash
+    pub pk: Option<PublicKey<N>>,
+    /// Potential similarity score of any computed by the server
+    /// before sending that encryption request
+    pub similarity_score: Option<T>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum EncryptionResponse<const N: usize> {
+    /// The client send an encrypted fuzzy hash to compare
+    EncryptedVector(CipherText<N>),
+    EndOfComparison,
 }

@@ -2,13 +2,13 @@ use anyhow::{Error, Result, anyhow};
 use core::array;
 use fe::traits::FEInstance;
 use fe::{Instance, PublicKey, SecretKey};
-use futures::sink::SinkExt;
+use futures::SinkExt;
+use futures::StreamExt;
 use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
 use log::{error, info};
 use messages::{GenerateInstanceRequest, GenerateInstanceResponse};
 use std::mem;
 use tokio::net::{TcpListener, TcpStream};
-use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 #[derive(Debug)]
@@ -68,7 +68,7 @@ struct ClientHandler {
 
 impl ClientHandler {
     /// The protocol is using framed content, encoded by prefixing the length of the payload
-    /// This reads an entire frame and returns what the readed frame. 
+    /// This reads an entire frame and returns what the readed frame.
     async fn read_frame(&mut self) -> Result<Vec<u8>> {
         let mut reader = FramedRead::new(&mut self.stream, LengthDelimitedCodec::new());
         let frame = reader.next().await.unwrap().unwrap().to_vec();
@@ -76,7 +76,7 @@ impl ClientHandler {
     }
 
     /// The protocol is using framed content, encoded by prefixing the length of the payload
-    /// This write an entire frame made of the given bytes. 
+    /// This write an entire frame made of the given bytes.
     async fn write_frame(&mut self, bytes: Vec<u8>) -> Result<()> {
         let mut writer = FramedWrite::new(&mut self.stream, LengthDelimitedCodec::new());
         writer.send(bytes.into()).await?;
@@ -144,7 +144,7 @@ fn check_incomming_vectors(incomming_vectors: &GenerateInstanceRequest<u8>) -> R
     Ok(())
 }
 
-/// Generate the instance, the public key and all the secret keys given 
+/// Generate the instance, the public key and all the secret keys given
 /// a "checked" request from a compute server.
 fn generate_parameters_nilsimsa(
     requested_vectors: GenerateInstanceRequest<u8>,
