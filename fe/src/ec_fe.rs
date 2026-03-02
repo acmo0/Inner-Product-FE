@@ -152,7 +152,7 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
     }
 }
 
-impl<const N: usize, T> FEPubKey<N, T, RistrettoPoint> for PublicKey<N>
+impl<const N: usize, T> FEPubKey<N, T, RistrettoPoint, Scalar> for PublicKey<N>
 where
     Scalar: std::convert::From<T>,
     T: Copy,
@@ -166,6 +166,38 @@ where
             array::from_fn(|i| Scalar::from(vector[i]) * self.g + r * self.mpk[i]);
 
         DdhFeCiphertext { c, d, e }
+    }
+
+    fn encrypt_mul<R: CryptoRng + ?Sized>(
+        &self,
+        rng: &mut R,
+        vector: [T; N],
+        alpha: &Scalar,
+    ) -> CipherText<N> {
+        let r = Scalar::random(rng);
+
+        let g_alpha = alpha * self.g;
+        let c = r * self.g;
+        let d = r * self.h;
+        let e: [RistrettoPoint; N] = array::from_fn(|i| {
+            RistrettoPoint::multiscalar_mul(&[Scalar::from(vector[i]), r], &[g_alpha, self.mpk[i]])
+        });
+
+        DdhFeCiphertext { c, d, e }
+    }
+
+    fn encrypt_mul_random<R: CryptoRng + ?Sized>(
+        &self,
+        rng: &mut R,
+        vector: [T; N],
+    ) -> (CipherText<N>, Scalar) {
+        let alpha = Scalar::random(rng);
+        let ct = self.encrypt_mul(rng, vector, &alpha);
+
+        (
+            ct,
+            alpha
+        )
     }
 }
 
@@ -192,7 +224,7 @@ impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
         let mut pm = pp;
         while ip <= bound {
             if pp == ex {
-                return Some(ip)
+                return Some(ip);
             } else {
                 ip += 1;
                 pp += self.g;

@@ -30,9 +30,22 @@ pub trait FEInstance<const N: usize, U, V> {
 
 /// Trait for a generic public key of the functionnal encryption scheme. A public key should
 /// be able to encrypt a vector of the same size of itself and return the associated ciphertext.
-pub trait FEPubKey<const N: usize, T, U>: Serialize + DeserializeOwned {
+pub trait FEPubKey<const N: usize, T, U, V>: Serialize + DeserializeOwned {
     /// Encrypt the given vector
     fn encrypt<R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; N]) -> DdhFeCiphertext<N, U>;
+    /// Encrypt alpha times the given vector
+    fn encrypt_mul<R: CryptoRng + ?Sized>(
+        &self,
+        rng: &mut R,
+        vector: [T; N],
+        alpha: &V,
+    ) -> DdhFeCiphertext<N, U>;
+    /// Encrypt alpha times the given vector, where alpha is randomly generated
+    fn encrypt_mul_random<R: CryptoRng + ?Sized>(
+        &self,
+        rng: &mut R,
+        vector: [T; N],
+    ) -> (DdhFeCiphertext<N, U>, V);
 }
 
 /// Trait for a generic secret key for the functionnal encryption scheme. The idea is that it

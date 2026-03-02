@@ -141,7 +141,7 @@ impl<const N: usize> FEInstance<N, Natural, Natural> for Instance<N> {
     }
 }
 
-impl<const N: usize, T> FEPubKey<N, T, Natural> for PublicKey<N>
+impl<const N: usize, T> FEPubKey<N, T, Natural, Natural> for PublicKey<N>
 where
     Natural: From<T>,
     T: Copy,
@@ -164,6 +164,51 @@ where
         });
 
         DdhFeCiphertext { c, d, e }
+    }
+
+    fn encrypt_mul<R: CryptoRng + ?Sized>(
+        &self,
+        seeder: &mut R,
+        vector: [T; N],
+        alpha: &Natural,
+    ) -> CipherText<N> {
+        let seed = Seed::from_bytes(array::from_fn(|_| seeder.random::<u8>()));
+        let mut rng = random::uniform_random_natural_range(seed, consts::CST2, DH15_PRIME.clone());
+
+        let r = rng
+            .next()
+            .expect("Unable to generate a random value for encryption");
+
+        let c = self.g.clone().mod_pow(&r, &*DH15_PRIME);
+        let d = self.h.clone().mod_pow(&r, &*DH15_PRIME);
+
+        let g_alpha = (&self.g).mod_pow(alpha, &*DH15_PRIME);
+
+        let e: [Natural; N] = array::from_fn(|i| {
+            (&g_alpha)
+                .mod_pow(Natural::from(vector[i]), &*DH15_PRIME)
+                .mod_mul(&self.mpk[i].clone().mod_pow(&r, &*DH15_PRIME), &*DH15_PRIME)
+        });
+
+        DdhFeCiphertext { c, d, e }
+    }
+
+    fn encrypt_mul_random<R: CryptoRng + ?Sized>(
+        &self,
+        seeder: &mut R,
+        vector: [T; N],
+    ) -> (CipherText<N>, Natural) {
+        let seed = Seed::from_bytes(array::from_fn(|_| seeder.random::<u8>()));
+        let mut rng = random::uniform_random_natural_range(seed, consts::CST2, DH15_PRIME.clone());
+
+        let alpha = rng.next().expect("Unable to generate a random scalar for encryption");
+
+        let ct = self.encrypt_mul(seeder, vector, &alpha);
+
+        (
+            ct,
+            alpha,
+        )
     }
 }
 
