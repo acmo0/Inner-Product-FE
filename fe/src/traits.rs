@@ -42,6 +42,7 @@ pub trait FEPubKey<const N: usize, T, U>: Serialize + DeserializeOwned {
 pub trait FESecretKey<const N: usize, U, S>: Serialize + DeserializeOwned {
     /// Decrypt the given ciphertext (i.e compute an inner product) using the secret key
     fn decrypt(&self, ct: impl FECipherText<U>, bound: S) -> Option<S>;
+    fn partial_decrypt(&self, ct: impl FECipherText<U>) -> U;
 }
 
 /// Trait that a ciphertext has to implement (i.e just getter for the field of the struct).

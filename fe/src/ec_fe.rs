@@ -183,6 +183,33 @@ impl<const N: usize> FECipherText<RistrettoPoint> for CipherText<N> {
 
 impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
     fn decrypt(&self, ct: impl FECipherText<RistrettoPoint>, bound: u16) -> Option<u16> {
+        let ex = self.partial_decrypt(ct);
+
+        // BF to retrieve scalar product value
+        let mut ip = bound / 2;
+        let mut im = bound / 2;
+        let mut pp = Scalar::from(ip) * self.g;
+        let mut pm = pp;
+        while ip <= bound {
+            if pp == ex {
+                return Some(ip)
+            } else {
+                ip += 1;
+                pp += self.g;
+            }
+
+            if pm == ex {
+                return Some(im);
+            } else {
+                im = im.saturating_sub(1);
+                pm -= self.g;
+            }
+        }
+
+        None
+    }
+
+    fn partial_decrypt(&self, ct: impl FECipherText<RistrettoPoint>) -> RistrettoPoint {
         let scalars: Vec<_> = self
             .x
             .iter()
@@ -197,16 +224,6 @@ impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
             .collect();
 
         // Compute sum(E * xi) - C * sx - D * tx
-        let ex = RistrettoPoint::multiscalar_mul(scalars, points);
-
-        // BF to retrieve scalar product value
-        let mut i = 0;
-        let mut p = RistrettoPoint::identity();
-        while i != bound && p != ex {
-            i += 1;
-            p += self.g
-        }
-
-        if i == bound { None } else { Some(i) }
+        RistrettoPoint::multiscalar_mul(scalars, points)
     }
 }

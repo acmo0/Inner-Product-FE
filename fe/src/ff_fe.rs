@@ -181,8 +181,20 @@ impl<const N: usize> FECipherText<Natural> for CipherText<N> {
 
 impl<const N: usize> FESecretKey<N, Natural, u16> for SecretKey<N> {
     fn decrypt(&self, ct: impl FECipherText<Natural>, bound: u16) -> Option<u16> {
-        let ex = ct
-            .get_e()
+        let ex = self.partial_decrypt(ct);
+
+        let mut i = 0u16;
+        let mut p = Natural::from(1u8);
+        while i < bound && p != ex {
+            i += 1;
+            p.mod_mul_assign(&self.g, &*DH15_PRIME);
+        }
+
+        if i == bound { None } else { Some(i) }
+    }
+
+    fn partial_decrypt(&self, ct: impl FECipherText<Natural>) -> Natural {
+        ct.get_e()
             .iter()
             .zip(self.x.clone())
             .fold(Natural::const_from(1), |acc, (ei, xi)| {
@@ -194,15 +206,6 @@ impl<const N: usize> FESecretKey<N, Natural, u16> for SecretKey<N> {
                     .mod_mul(ct.get_d().mod_pow(&self.tx, &*DH15_PRIME), &*DH15_PRIME)
                     .mod_pow(&*DH15_PRIME - consts::CST2, &*DH15_PRIME),
                 &*DH15_PRIME,
-            );
-
-        let mut i = 0u16;
-        let mut p = Natural::from(1u8);
-        while i < bound && p != ex {
-            i += 1;
-            p.mod_mul_assign(&self.g, &*DH15_PRIME);
-        }
-
-        if i == bound { None } else { Some(i) }
+            )
     }
 }
