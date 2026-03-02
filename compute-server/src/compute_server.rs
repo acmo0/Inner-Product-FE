@@ -1,5 +1,5 @@
 use anyhow::{Error, Result, anyhow};
-use fe::{PublicKey, SecretKey};
+use fe::{PublicKey, SecretKey, GroupElement, traits::FESecretKey};
 use log::{debug, error, info};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -170,14 +170,14 @@ impl ClientHandler<NILSIMSA_VECTOR_SIZE_BITS> {
         let mut writer = FramedWrite::new(&mut tx, LengthDelimitedCodec::new());
         let mut reader = FramedRead::new(&mut rx, LengthDelimitedCodec::new());
 
-        let mut score: i16 = i16::MIN;
+        let mut scores: Vec<GroupElement> = vec![];
 
         for (pk, sks) in &self.keys {
             let message = match self.hash_type {
                 HashComparisonRequest::NILSIMSA => {
-                    EncryptionRequest::<NILSIMSA_VECTOR_SIZE_BITS, i16> {
+                    EncryptionRequest::<NILSIMSA_VECTOR_SIZE_BITS, GroupElement> {
                         pk: Some(pk.clone()),
-                        similarity_score: Some(score),
+                        similarity_scores: Some(scores.clone()),
                     }
                 }
             };
@@ -195,21 +195,15 @@ impl ClientHandler<NILSIMSA_VECTOR_SIZE_BITS> {
             };
 
             
-            score = i16::MIN;
-            for sk in sks {
-                let tmp_score = sk.compare(ct.clone());
-                if tmp_score > score {
-                    score = tmp_score;
-                }
-            }
+            scores = sks.iter().map(|sk| sk.partial_decrypt(ct)).collect();
         }
 
         // Send to client the "end of the db"
         let message = match self.hash_type {
             HashComparisonRequest::NILSIMSA => {
-                EncryptionRequest::<NILSIMSA_VECTOR_SIZE_BITS, i16> {
+                EncryptionRequest::<NILSIMSA_VECTOR_SIZE_BITS, GroupElement> {
                     pk: None,
-                    similarity_score: Some(score),
+                    similarity_scores: Some(scores),
                 }
             }
         };

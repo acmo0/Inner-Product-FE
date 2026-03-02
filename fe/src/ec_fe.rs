@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use core::array;
+use std::collections::HashMap;
 
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
@@ -86,6 +87,11 @@ impl<const N: usize> TryFrom<&CompressedSecretKey> for SecretKey<N> {
     }
 }
 
+impl<const N: usize> PublicKey<N> {
+    pub fn get_gen(&self) -> RistrettoPoint {
+        self.g
+    }
+}
 // Useful to get a random master secret key element
 impl MskItem<Scalar> {
     pub(crate) fn get_rand<R: CryptoRng + ?Sized>(rng: &mut R) -> Self {
@@ -258,4 +264,19 @@ impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
         // Compute sum(E * xi) - C * sx - D * tx
         RistrettoPoint::multiscalar_mul(scalars, points)
     }
+}
+
+pub type LogTable = HashMap<CompressedRistretto, u16>;
+
+pub fn generate_table(generator: RistrettoPoint, bound: u16) -> LogTable {
+    let mut i: u16 = 0;
+    let mut table = HashMap::new();
+    let mut p = RistrettoPoint::identity();
+
+    for i in 0..bound {
+        table.insert(p.compress(), i);
+        p += generator;
+    }
+
+    table
 }

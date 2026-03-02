@@ -67,7 +67,7 @@ pub struct EncryptionRequest<const N: usize, T> {
     pub pk: Option<PublicKey<N>>,
     /// Potential similarity score of any computed by the server
     /// before sending that encryption request
-    pub similarity_score: Option<T>,
+    pub similarity_scores: Option<Vec<T>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

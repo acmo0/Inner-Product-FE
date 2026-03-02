@@ -55,6 +55,7 @@ pub trait FEPubKey<const N: usize, T, U, V>: Serialize + DeserializeOwned {
 pub trait FESecretKey<const N: usize, U, S>: Serialize + DeserializeOwned {
     /// Decrypt the given ciphertext (i.e compute an inner product) using the secret key
     fn decrypt(&self, ct: impl FECipherText<U>, bound: S) -> Option<S>;
+    /// Perform all the decryption steps expect the bruteforce of the discrete log
     fn partial_decrypt(&self, ct: impl FECipherText<U>) -> U;
 }
 

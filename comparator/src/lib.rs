@@ -63,7 +63,7 @@ type NilsimsaSecretKey = SecretKey<NILSIMSA_VECTOR_SIZE_BITS>;
 
 impl Comparator<NILSIMSA_VECTOR_SIZE_BITS, i16, NilsimsaCipherText> for NilsimsaSecretKey {
     fn compare(&self, encrypted_vector: NilsimsaCipherText) -> i16 {
-        let dec = self.decrypt(encrypted_vector, NILSIMSA_VECTOR_SIZE_BITS as u16);
+        let dec = self.decrypt(encrypted_vector, (NILSIMSA_VECTOR_SIZE_BITS as u16) / 2);
 
         match dec {
             None => panic!("Something went wrong, unable to retrieve the hamming distance"),

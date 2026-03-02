@@ -32,7 +32,7 @@ pub struct DdhFePublicKey<const N: usize, U> {
 
 /// Generic structure representing a ciphertext for the FE scheme.
 /// * `U` : internal type representing a group element used by the FE scheme
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct DdhFeCiphertext<const N: usize, U> {
     pub(crate) c: U,
     pub(crate) d: U,

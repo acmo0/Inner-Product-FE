@@ -9,7 +9,10 @@ use std::error::Error;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
-use fe::traits::FEPubKey;
+use fe::traits::{FEPubKey};
+use fe::{PublicKey, curve25519_dalek, CipherText, GroupElement, CompressedGroupElement, LogTable, Scalar};
+use std::collections::HashMap;
+
 use rand::{
     SeedableRng,
     rngs::{StdRng, SysRng},
@@ -56,7 +59,7 @@ impl Client {
         };
         // Init the RNG to perform encryption
         let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
-
+        let mut log_table = LogTable::new();
         // Compute the vector to compare fuzzy hashes
         info!("Sending request to server");
         self.write_frame(postcard::to_stdvec(&message)?).await?;
@@ -64,17 +67,28 @@ impl Client {
         loop {
 	        let encryption_rq = match self.fuzzy_hash {
 	            FHVector::NilsimsaVector(_) => postcard::from_bytes::<
-	                EncryptionRequest<NILSIMSA_VECTOR_SIZE_BITS, i16>,
+	                EncryptionRequest<NILSIMSA_VECTOR_SIZE_BITS, GroupElement>,
 	            >(&self.read_frame().await?)?,
 	        };
 
 	        debug!("Received a public key from the server");
 
 	        // Update similarity score if any
-	        match encryption_rq.similarity_score {
-	        	Some(s) => score = if score > s {score} else {s},
+	        match encryption_rq.similarity_scores {
+	        	Some(scores) => {
+                    for s in scores {
+                        let log_s = match log_table.get(&s.compress()) {
+                            Some(i) => *i,
+                            None => u16::MIN,
+                        };
+                        let similarity_score: i16 = 128 - (((NILSIMSA_VECTOR_SIZE_BITS >> 1 ) as i16) - (log_s as i16));
+                        if similarity_score > score {
+                            score = similarity_score;
+                        }
+                    }
+                }
 	        	None => {}
-	        };
+	        }
 
 	        // Retrieve the pk if any
 	        let pk = match encryption_rq.pk {
@@ -86,10 +100,14 @@ impl Client {
 	        
 
 	        info!("Encrypting vector...");
-	        let encrypted_vector = pk.encrypt(&mut rng, vector);
+            let g: GroupElement = pk.get_gen();
+	        let (encrypted_vector, alpha): (CipherText<_>, Scalar) = pk.encrypt_mul_random(&mut rng, vector);
 	        info!("Sending ct to server");
 	        let encryption_response = EncryptionResponse::EncryptedVector(encrypted_vector);
 	        self.write_frame(postcard::to_stdvec(&encryption_response)?).await?;
+
+            info!("Generating log table...");
+            log_table = fe::generate_table(alpha * g, 256);
 	    }
 
         Ok(i16::MIN)
