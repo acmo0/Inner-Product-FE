@@ -11,7 +11,60 @@ use rand::{
     rngs::{StdRng, SysRng},
 };
 
-use crate::consts;
+//https://www.ietf.org/rfc/rfc3526.txt
+const DH15_PRIME_LIMBS: [u64; 48] = [
+    0xFFFFFFFFFFFFFFFF,
+    0xC90FDAA22168C234,
+    0xC4C6628B80DC1CD1,
+    0x29024E088A67CC74,
+    0x020BBEA63B139B22,
+    0x514A08798E3404DD,
+    0xEF9519B3CD3A431B,
+    0x302B0A6DF25F1437,
+    0x4FE1356D6D51C245,
+    0xE485B576625E7EC6,
+    0xF44C42E9A637ED6B,
+    0x0BFF5CB6F406B7ED,
+    0xEE386BFB5A899FA5,
+    0xAE9F24117C4B1FE6,
+    0x49286651ECE45B3D,
+    0xC2007CB8A163BF05,
+    0x98DA48361C55D39A,
+    0x69163FA8FD24CF5F,
+    0x83655D23DCA3AD96,
+    0x1C62F356208552BB,
+    0x9ED529077096966D,
+    0x670C354E4ABC9804,
+    0xF1746C08CA18217C,
+    0x32905E462E36CE3B,
+    0xE39E772C180E8603,
+    0x9B2783A2EC07A28F,
+    0xB5C55DF06F4C52C9,
+    0xDE2BCBF695581718,
+    0x3995497CEA956AE5,
+    0x15D2261898FA0510,
+    0x15728E5A8AAAC42D,
+    0xAD33170D04507A33,
+    0xA85521ABDF1CBA64,
+    0xECFB850458DBEF0A,
+    0x8AEA71575D060C7D,
+    0xB3970F85A6E1E4C7,
+    0xABF5AE8CDB0933D7,
+    0x1E8C94E04A25619D,
+    0xCEE3D2261AD2EE6B,
+    0xF12FFA06D98A0864,
+    0xD87602733EC86A64,
+    0x521F2B18177B200C,
+    0xBBE117577A615D6C,
+    0x770988C0BAD946E2,
+    0x08E24FA074E5AB31,
+    0x43DB5BFCE0FD108E,
+    0x4B82D120A93AD2CA,
+    0xFFFFFFFFFFFFFFFF,
+];
+
+const CST2: Natural = Natural::const_from(2);
+
 use crate::generic::{
     CompressedDdhFeSecretKey, DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey,
     MskItem,
@@ -19,7 +72,7 @@ use crate::generic::{
 use crate::traits::{FECipherText, FEInstance, FEPubKey, FESecretKey};
 
 lazy_static::lazy_static! {
-    static ref DH15_PRIME: Natural = Natural::from_limbs_desc(&consts::DH15_PRIME_LIMBS);
+    static ref DH15_PRIME: Natural = Natural::from_limbs_desc(DH15_PRIME_LIMBS);
 }
 
 // Useful to get a random master secret key element
@@ -92,7 +145,7 @@ impl<const N: usize> FEInstance<N, Natural, Natural> for Instance<N> {
         // PRNG
         let mut seeder = StdRng::try_from_rng(&mut SysRng).unwrap();
         let seed = Seed::from_bytes(array::from_fn(|_| seeder.random::<u8>()));
-        let mut rng = random::uniform_random_natural_range(seed, consts::CST2, DH15_PRIME.clone());
+        let mut rng = random::uniform_random_natural_range(seed, CST2, DH15_PRIME.clone());
 
         // Init parameters
         let g = rng.next().expect("Unable to generate a random generator");
@@ -148,7 +201,7 @@ where
 {
     fn encrypt<R: CryptoRng + ?Sized>(&self, seeder: &mut R, vector: [T; N]) -> CipherText<N> {
         let seed = Seed::from_bytes(array::from_fn(|_| seeder.random::<u8>()));
-        let mut rng = random::uniform_random_natural_range(seed, consts::CST2, DH15_PRIME.clone());
+        let mut rng = random::uniform_random_natural_range(seed, CST2, DH15_PRIME.clone());
 
         let r = rng
             .next()
@@ -173,7 +226,7 @@ where
         alpha: &Natural,
     ) -> CipherText<N> {
         let seed = Seed::from_bytes(array::from_fn(|_| seeder.random::<u8>()));
-        let mut rng = random::uniform_random_natural_range(seed, consts::CST2, DH15_PRIME.clone());
+        let mut rng = random::uniform_random_natural_range(seed, CST2, DH15_PRIME.clone());
 
         let r = rng
             .next()
@@ -199,16 +252,15 @@ where
         vector: [T; N],
     ) -> (CipherText<N>, Natural) {
         let seed = Seed::from_bytes(array::from_fn(|_| seeder.random::<u8>()));
-        let mut rng = random::uniform_random_natural_range(seed, consts::CST2, DH15_PRIME.clone());
+        let mut rng = random::uniform_random_natural_range(seed, CST2, DH15_PRIME.clone());
 
-        let alpha = rng.next().expect("Unable to generate a random scalar for encryption");
+        let alpha = rng
+            .next()
+            .expect("Unable to generate a random scalar for encryption");
 
         let ct = self.encrypt_mul(seeder, vector, &alpha);
 
-        (
-            ct,
-            alpha,
-        )
+        (ct, alpha)
     }
 }
 
@@ -249,7 +301,7 @@ impl<const N: usize> FESecretKey<N, Natural, u16> for SecretKey<N> {
                 ct.get_c()
                     .mod_pow(&self.sx, &*DH15_PRIME)
                     .mod_mul(ct.get_d().mod_pow(&self.tx, &*DH15_PRIME), &*DH15_PRIME)
-                    .mod_pow(&*DH15_PRIME - consts::CST2, &*DH15_PRIME),
+                    .mod_pow(&*DH15_PRIME - CST2, &*DH15_PRIME),
                 &*DH15_PRIME,
             )
     }

@@ -3,7 +3,7 @@ use anyhow::anyhow;
 use clap::Parser;
 use fuzzy_hashes::{FHVector, Nilsimsa};
 use log::{debug, info};
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Read;
 use std::io::{BufRead, BufReader};
 use tokio::net::TcpStream;
@@ -16,6 +16,7 @@ use client::Client;
 struct Cli {
     compute_addr: String,
     file: std::path::PathBuf,
+    cache: std::path::PathBuf,
     #[clap(long, action, default_value = "true", conflicts_with = "sdhash")]
     nilsimsa: bool,
     #[clap(long, action, conflicts_with = "nilsimsa")]
@@ -37,6 +38,12 @@ async fn main() -> Result<()> {
     let mut f = File::open(&args.file)?;
     let mut reader = BufReader::new(f);
     let mut hash: FHVector<u8>;
+
+    // Open the cache and read it
+    let cache: Vec<u8> = match fs::read(&args.cache) {
+        Ok(content) => content,
+        _ => vec![],
+    };
 
     if args.nilsimsa {
         debug!("Hashing using nilsimsa");
@@ -62,8 +69,11 @@ async fn main() -> Result<()> {
     // Connect to a peer
     let mut stream = TcpStream::connect(&args.compute_addr).await?;
 
-    let mut client = Client::new(stream, hash);
+    let mut client = Client::new(stream, hash, cache);
     let max_similarity_score = client.start().await?;
+
+    debug!("Caching client log tables : {:?}", client.get_cache().len());
+    fs::write(&args.cache, client.get_cache())?;
 
     println!("Max similarity score is {:?}", max_similarity_score);
     Ok(())

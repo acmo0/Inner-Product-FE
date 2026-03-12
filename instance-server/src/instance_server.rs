@@ -1,7 +1,7 @@
 use anyhow::{Error, Result, anyhow};
 use core::array;
 use fe::traits::FEInstance;
-use fe::{Instance, PublicKey, SecretKey};
+use fe::{Instance, PublicKey, SecretKey, RANDOM_PADDING_LEN};
 use futures::SinkExt;
 use futures::StreamExt;
 use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
@@ -19,7 +19,9 @@ pub struct Server {
 // Max number of vectors that a single instance can encrypt
 // if the request contains more (or at least as much) than this
 // the request is simply ignored.
-const SERVER_MAX_LEN: usize = NILSIMSA_VECTOR_SIZE_BITS;
+const SERVER_MAX_LEN: usize = RANDOM_PADDING_LEN;
+const VECTOR_SIZE: usize = RANDOM_PADDING_LEN + NILSIMSA_VECTOR_SIZE_BITS;
+//const SERVER_MAX_LEN: usize = NILSIMSA_VECTOR_SIZE_BITS;
 
 impl Server {
     pub fn new(listener: TcpListener) -> Self {
@@ -127,10 +129,10 @@ impl ClientHandler {
 /// Helper function, this function ensures that the vectors are all the same length, the same type
 /// and that it as at least one vector (and no more than the maximum number of vectors allowed )
 fn check_incomming_vectors(incomming_vectors: &GenerateInstanceRequest<u8>) -> Result<()> {
-    match incomming_vectors.len() {
-        0 => return Err(anyhow!("Received empty message, abort")),
-        SERVER_MAX_LEN => return Err(anyhow!("Received too much vectors, abort")),
-        _ => {}
+    if incomming_vectors.len() == 0 {
+        return Err(anyhow!("Received empty message, abort"));
+    } else if incomming_vectors.len() > SERVER_MAX_LEN {
+        return Err(anyhow!("Received too much vectors, abort"));
     }
 
     let all_same_kind = incomming_vectors
@@ -148,16 +150,29 @@ fn check_incomming_vectors(incomming_vectors: &GenerateInstanceRequest<u8>) -> R
 /// a "checked" request from a compute server.
 fn generate_parameters_nilsimsa(
     requested_vectors: GenerateInstanceRequest<u8>,
-) -> GenerateInstanceResponse<NILSIMSA_VECTOR_SIZE_BITS> {
+) -> GenerateInstanceResponse<VECTOR_SIZE> {
     let instance = Instance::setup();
-    let pk: PublicKey<NILSIMSA_VECTOR_SIZE_BITS> = instance.public_key::<u8>();
-    let sk_vec: Vec<SecretKey<NILSIMSA_VECTOR_SIZE_BITS>> = requested_vectors
+    let pk: PublicKey<VECTOR_SIZE> = instance.public_key::<u8>();
+    let sk_vec: Vec<SecretKey<VECTOR_SIZE>> = requested_vectors
         .iter()
-        .map(|vector| {
+        .enumerate()
+        .map(|(k, vector)| {
             match vector {
                 FHVector::<_>::NilsimsaVector(v_bytes) => {
-                    let v: [u8; NILSIMSA_VECTOR_SIZE_BITS] =
-                        array::from_fn(|i| 1 & (v_bytes[i / 8] >> (7 - (i % 8))));
+                    // The first coordinates are the bits of the fuzzy hash
+                    // the remaining ones are zeros except the k-th coordinate
+                    let v: [u8; VECTOR_SIZE] =
+                        array::from_fn(|i| {
+                            if i < NILSIMSA_VECTOR_SIZE_BITS {
+                                1 & (v_bytes[i / 8] >> (7 - (i % 8)))
+                            } else {
+                                if i - NILSIMSA_VECTOR_SIZE_BITS == k {
+                                    1
+                                } else {
+                                    0
+                                }
+                            }
+                        });
                     return instance.secret_key(v);
                 }
             };

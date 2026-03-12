@@ -63,7 +63,9 @@ cfg_if::cfg_if! {
 }
 
 mod generic;
+mod consts;
 pub mod traits;
+pub use consts::RANDOM_PADDING_LEN;
 
 #[cfg(test)]
 mod tests {

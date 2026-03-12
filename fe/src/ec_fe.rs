@@ -15,7 +15,7 @@ use crate::generic::{
     MskItem,
 };
 use crate::traits::{FECipherText, FEInstance, FEPubKey, FESecretKey};
-
+use crate::consts::RANDOM_PADDING_LEN;
 /*
     Type aliases (shared by both ec_fe.rs and ff_fe.rs)
 */
@@ -91,6 +91,17 @@ impl<const N: usize> PublicKey<N> {
     pub fn get_gen(&self) -> RistrettoPoint {
         self.g
     }
+
+    fn encrypt_scalar_vec<R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [Scalar; N]) -> CipherText<N> {
+        let r = Scalar::random(rng);
+
+        let c = r * self.g;
+        let d = r * self.h;
+        let e: [RistrettoPoint; N] =
+            array::from_fn(|i| vector[i] * self.g + r * self.mpk[i]);
+
+        DdhFeCiphertext { c, d, e }
+    }
 }
 // Useful to get a random master secret key element
 impl MskItem<Scalar> {
@@ -142,7 +153,7 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
             g: self.g,
             sx: scal.0,
             tx: scal.1,
-            x: array::from_fn(|i| Scalar::from(vector[i])),
+            x: array::from_fn::<Scalar, N, _>(|i| Scalar::from(vector[i])),
         }
     }
 
@@ -164,45 +175,28 @@ where
     T: Copy,
 {
     fn encrypt<R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; N]) -> CipherText<N> {
-        let r = Scalar::random(rng);
-
-        let c = r * self.g;
-        let d = r * self.h;
-        let e: [RistrettoPoint; N] =
-            array::from_fn(|i| Scalar::from(vector[i]) * self.g + r * self.mpk[i]);
-
-        DdhFeCiphertext { c, d, e }
+        let v: [Scalar; N] = array::from_fn(|i| Scalar::from(vector[i]));
+        
+        self.encrypt_scalar_vec(rng, v)
     }
 
-    fn encrypt_mul<R: CryptoRng + ?Sized>(
-        &self,
-        rng: &mut R,
-        vector: [T; N],
-        alpha: &Scalar,
-    ) -> CipherText<N> {
-        let r = Scalar::random(rng);
+    fn encrypt_random_pad<const L: usize, R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; L])
+        -> (CipherText<N>, [Scalar; RANDOM_PADDING_LEN])
+    {
+        assert!(L + RANDOM_PADDING_LEN == N);
 
-        let g_alpha = alpha * self.g;
-        let c = r * self.g;
-        let d = r * self.h;
-        let e: [RistrettoPoint; N] = array::from_fn(|i| {
-            RistrettoPoint::multiscalar_mul(&[Scalar::from(vector[i]), r], &[g_alpha, self.mpk[i]])
+        let random_padding: [Scalar; RANDOM_PADDING_LEN] = array::from_fn(|i| Scalar::random(rng));
+        let vector_with_padding: [Scalar; N] = array::from_fn(|i| {
+            if i < L {
+                Scalar::from(vector[i])
+            } else {
+                random_padding[i - L]
+            }
         });
 
-        DdhFeCiphertext { c, d, e }
-    }
-
-    fn encrypt_mul_random<R: CryptoRng + ?Sized>(
-        &self,
-        rng: &mut R,
-        vector: [T; N],
-    ) -> (CipherText<N>, Scalar) {
-        let alpha = Scalar::random(rng);
-        let ct = self.encrypt_mul(rng, vector, &alpha);
-
         (
-            ct,
-            alpha
+            self.encrypt_scalar_vec(rng, vector_with_padding),
+            random_padding,
         )
     }
 }

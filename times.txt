@@ -1,0 +1,5 @@
+16 pad : 7.71ms/cmp, 1.85ms/sk
+32 pad : 6.58ms/cmp, 1.17ms/sk
+64 pad : 6.25ms/cmp, 0.86ms/sk
+128 pad : 6.61ms/cmp, 0.58ms/sk
+256 pad : 7.67ms/cmp, 0.56ms/sk

@@ -1,6 +1,7 @@
 mod compute_server;
 use crate::compute_server::Server;
 
+use std::fs;
 use anyhow::Result;
 use clap::Parser;
 use log::info;
@@ -12,6 +13,7 @@ struct Cli {
     bind: String,
     authority_addr: String,
     db_path: std::path::PathBuf,
+    cache: std::path::PathBuf,
     #[clap(long, short, action)]
     populate_db: bool,
 }
@@ -39,7 +41,7 @@ async fn main() -> Result<()> {
         Err(e) => panic!("Unable to bind {} : {}", &args.bind, e),
     };
 
-    let mut server = Server::new(socket, ct_connection, args.authority_addr);
+    let mut server = Server::new(socket, ct_connection, args.authority_addr, args.cache);
     server.run().await?;
     Ok(())
 }

@@ -23,7 +23,7 @@ pub const NILSIMSA_VECTOR_SIZE_BITS: usize = 512;
 
 /// Enum representing a fuzzy hash vector. For now, only Nilsimsa fuzzy hashes
 /// are supported, but this will allow easy implementation for new hashes.
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
 pub enum FHVector<T: Serialize + DeserializeOwned> {
     /// Nilsimsa vector variant
     #[serde(with = "BigArray")]

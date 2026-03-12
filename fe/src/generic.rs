@@ -55,7 +55,7 @@ pub struct DdhFeInstance<const N: usize, T, U> {
 /*
     "Compressed" variants to improve protocol efficiency
 */
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
 pub struct CompressedDdhFeSecretKey<T, U, V> {
     pub(crate) g: U,
     pub(crate) sx: T,

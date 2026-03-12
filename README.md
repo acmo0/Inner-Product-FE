@@ -31,7 +31,7 @@ cargo test --no-default-features -F finite-field --release
 
 ## Build
 ```sh
-RUSTFALGS="-C target-cpu=native" cargo build --release
+RUSTFLAGS="-C target-cpu=native" cargo build --release
 ```
 
 ## Run
