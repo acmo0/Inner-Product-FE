@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use anyhow::{Error, Result, anyhow};
 use fe::{GroupElement, PublicKey, SecretKey, traits::FESecretKey, RANDOM_PADDING_LEN};
 use log::{debug, error, info};
@@ -198,7 +199,7 @@ impl ClientHandler<VECTOR_SIZE> {
                 EncryptionResponse::<_>::EndOfComparison => break,
             };
 
-            scores = sks.iter().map(|sk| sk.partial_decrypt(ct)).collect();
+            scores = sks.par_iter().map(|sk| sk.partial_decrypt(ct)).collect();
         }
 
         // Send to client the "end of the db"

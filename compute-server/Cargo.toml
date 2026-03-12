@@ -17,3 +17,4 @@ rusqlite = { version = "0.38.0", features = ["bundled"] }
 tokio-util = { version = "0.7.18", features = ["codec"] }
 futures = "0.3.31"
 comparator = { version = "0.1.0", path = "../comparator" }
+rayon = "1.11.0"

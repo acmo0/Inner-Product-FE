@@ -317,6 +317,7 @@ dependencies = [
  "log",
  "messages",
  "postcard",
+ "rayon",
  "rusqlite",
  "tokio",
  "tokio-util",
