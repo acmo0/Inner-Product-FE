@@ -1,8 +1,5 @@
-use std::collections::HashSet;
-use std::fs;
-
 use anyhow::{Error, Result, anyhow};
-use fe::{GroupElement, PublicKey, SecretKey, CompressedSecretKey, traits::FESecretKey, RANDOM_PADDING_LEN};
+use fe::{GroupElement, PublicKey, SecretKey, traits::FESecretKey, RANDOM_PADDING_LEN};
 use log::{debug, error, info};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -23,23 +20,17 @@ pub struct Server {
     listener: TcpListener,
     db_connection: Connection,
     authority_addr: String,
-    cache_path: std::path::PathBuf,
-    cache: Vec<u8>,
 }
 
 const VECTOR_SIZE: usize = NILSIMSA_VECTOR_SIZE_BITS + RANDOM_PADDING_LEN;
 const FH_SQL_QUERY: &str = "SELECT fh FROM fuzzy_hashes WHERE type == :hash_type";
-const PK_SQL_QUERY: &str = "SELECT * FROM public_keys WHERE type == :hash_type";
-const SK_SQL_QUERY: &str = "SELECT * from secret_keys WHERE type == :hash_type AND pk_id == :pk_id";
 
 impl Server {
-    pub fn new(listener: TcpListener, db_connection: Connection, authority_addr: String, cache_path: std::path::PathBuf) -> Self {
+    pub fn new(listener: TcpListener, db_connection: Connection, authority_addr: String) -> Self {
         Self {
             listener,
             db_connection,
             authority_addr,
-            cache_path,
-            cache: vec![],
         }
     }
 
@@ -56,51 +47,6 @@ impl Server {
 
         Ok(vectors)
     }
-
-    fn from_cache(&self) -> Result<Vec<(PublicKey<VECTOR_SIZE>, Vec<CompressedSecretKey>, Vec<FHVector<u8>>)>> {
-        if self.cache.is_empty() {
-            Ok(vec![])
-        } else {
-            match postcard::from_bytes::<Vec<(PublicKey<VECTOR_SIZE>, Vec<CompressedSecretKey>, Vec<FHVector<u8>>)>>(&self.cache) {
-                Ok(c) => Ok(c),
-                _ => Ok(vec![]),
-            }
-        }
-    }
-
-    fn to_cache(&mut self, cache: Vec<(PublicKey<VECTOR_SIZE>, Vec<CompressedSecretKey>, Vec<FHVector<u8>>)>) {
-        self.cache = postcard::to_stdvec(&cache).unwrap();
-    }
-
-    fn get_cache(&self) -> Vec<u8> {
-        self.cache.clone()
-    }
-
-/*    fn get_nilsimsa_public_keys(&self) -> Result<Vec<(u32, PublicKey<VECTOR_SIZE>)>> {
-        let mut pk_statement = self.db_connection.prepare(PK_SQL_QUERY)?;
-
-        let pks = pk_statement
-            .query_map(named_params! {":hash_type": "nilsimsa"}, |row| {
-                let pk_id: u32 = row.get("pk_id").expect("Malformed database");
-                let pk_blob: Vec<u8> = row.get("pk").expect("Malformed database");
-
-                let pk: PublicKey<VECTOR_SIZE> = postcard::from_bytes(&pk_blob).expect("Malformed database");
-                Ok((pk_id, pk))
-            })?
-            .map(|e| e.expect("Malformed public key in database"))
-            .collect();
-
-        Ok(pks)
-    }
-
-    fn get_nilsimsa_secret_key(&self, pk_id: u32) -> Result<Vec<SecretKey<VECTOR_SIZE>>> {
-        let mut sk_statement = self.db_connection.prepare(SK_SQL_QUERY)?;
-
-        let sks = sk_statement
-            .query_map(named_params! {":hash_type": "nilsimsa", "pk_id": pk_id}, |row| {
-                let sk_blob: Vec<u8> = row.get("sk")
-            })
-    }*/
 
     async fn retrieve_secret_keys<const N: usize>(
         &self,
@@ -123,14 +69,6 @@ impl Server {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        self.cache = {
-            if fs::exists(&self.cache_path)? {
-                fs::read(&self.cache_path)?
-            } else {
-                vec![]
-            }
-        };
-
         loop {
             let mut s = match self.accept_conn().await {
                 Ok(stream) => stream,
@@ -148,58 +86,33 @@ impl Server {
                 postcard::from_bytes(&frame).expect("Failed to understand client request");
 
             info!("Loading {:?} fuzzy hashes", requested_hash_type);
-            let mut hashes: HashSet<FHVector<u8>> = match requested_hash_type {
+
+            let hashes = match requested_hash_type {
                 HashComparisonRequest::NILSIMSA => match self.get_nilsimsa_hashes() {
                     Err(error) => return Err(error),
-                    Ok(v) => HashSet::from_iter(v),
+                    Ok(v) => v,
                 },
             };
 
             info!("Loaded {} fuzzy hashes", hashes.len());
-            info!("Loading cache");
-            let mut cache = self.from_cache()?;
-
-            let cached_hashes: HashSet<FHVector<u8>> = HashSet::from_iter(cache.iter().flat_map(|(_,_,fhs)| fhs.clone()));
-            let diff: HashSet<FHVector<u8>> = (&hashes - &cached_hashes);
-
-            let remaining_hashes: Vec<_> = diff.into_iter().collect();
-
-            info!("Query authority server for additionnal secret keys");
-            let (mut keys, fhs) = match requested_hash_type {
+            info!("Query authority server for secret keys");
+            let keys = match requested_hash_type {
                 HashComparisonRequest::NILSIMSA => {
-                    let mut batches = (vec![], vec![]);
-
-                    for hashes_batch in remaining_hashes.chunks(RANDOM_PADDING_LEN) {
+                    let mut batches = vec![];
+                    for hashes_batch in hashes.chunks(RANDOM_PADDING_LEN) {
                         let compressed_response = self
                             .retrieve_secret_keys::<VECTOR_SIZE>(hashes_batch)
                             .await?;
                         match compressed_response.decompress() {
-                            Ok(decompressed) => {
-                                batches.0.push(decompressed);
-                                batches.1.push(hashes_batch);
-                            },
+                            Ok(decompressed) => batches.push(decompressed),
                             _ => return Err(anyhow!("Unable to retrieve vectors from authority")),
                         }
                     }
                     batches
                 }
             };
-            info!("Received pk/sk from authority");
-            
-            for ((pk, sks), fhs2) in keys.into_iter().zip(fhs) {
-                cache.push((
-                    pk,
-                    sks.iter().map(|sk: &SecretKey<VECTOR_SIZE>| {
-                    let compressed: CompressedSecretKey = sk.into();
-                    compressed
-                    }).collect(),
-                    fhs2.to_vec()));
-            }
 
-            keys = cache.iter().cloned().map(|(pk, sks, _)| {
-                let sks_decompressed = sks.iter().map(|sk| {let decompressed: SecretKey<VECTOR_SIZE> = sk.try_into().unwrap(); decompressed }).collect();
-                (pk, sks_decompressed)
-            }).collect();
+            info!("Received pk/sk from authority");
 
             tokio::spawn(async move {
                 let mut client_handler = ClientHandler {
@@ -215,10 +128,6 @@ impl Server {
                     }
                 }
             });
-
-            self.to_cache(cache);
-            debug!("Writing to cache file");
-            fs::write(&self.cache_path, &self.cache)?;
         }
     }
 

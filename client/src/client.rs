@@ -25,7 +25,6 @@ use rand::{
 pub struct Client {
     stream: TcpStream,
     fuzzy_hash: FHVector<u8>,
-    cache: Vec<u8>,
 }
 
 const VECTOR_SIZE: usize = RANDOM_PADDING_LEN + NILSIMSA_VECTOR_SIZE_BITS;
@@ -48,26 +47,12 @@ impl Client {
     }
 
     /// Create a new client
-    pub fn new(stream: TcpStream, fuzzy_hash: FHVector<u8>, cache: Vec<u8>) -> Self {
-        Self { stream, fuzzy_hash, cache }
-    }
-
-    /// Return the cache of the client
-    pub fn get_cache(&self) -> Vec<u8> {
-        self.cache.clone()
+    pub fn new(stream: TcpStream, fuzzy_hash: FHVector<u8>) -> Self {
+        Self { stream, fuzzy_hash }
     }
 
     pub async fn start(&mut self) -> Result<i16> {
         info!("Started connection with server");
-
-        info!("Loading cache file");
-        let mut cache: HashMap<CompressedGroupElement, LogTable> = {
-            if self.cache.is_empty() {
-                HashMap::new()
-            } else {
-                postcard::from_bytes::<HashMap<CompressedGroupElement, LogTable>>(&self.cache)?
-            }
-        };
 
         let message = match self.fuzzy_hash {
             FHVector::NilsimsaVector(v) => HashComparisonRequest::NILSIMSA,
@@ -103,23 +88,10 @@ impl Client {
             // Update similarity score if any
             match encryption_rq.similarity_scores {
                 Some(scores) => {
-                    log_table = match cache.get(&g.compress()) {
-                        Some(t) => t.clone(),
-                        None => {
-                            warn!("Error in cache pre-computation");
-                            let table = fe::generate_table(g, 256);
-                            cache.insert(g.compress(), table.clone());
-                            table
-                        }
-                    };
-
                     for (i, s) in scores.into_iter().enumerate() {
                         let log_s = match log_table.get(&(s - randoms[i] * g).compress()) {
                             Some(i) => *i,
-                            None => {
-                                warn!("Log not found");
-                                u16::MIN
-                            }
+                            None => u16::MIN,
                         };
                         let similarity_score: i16 =
                             128 - (((NILSIMSA_VECTOR_SIZE_BITS >> 1) as i16) - (log_s as i16));
@@ -135,10 +107,7 @@ impl Client {
             let pk = match encryption_rq.pk {
                 Some(pk) => pk,
                 // None means no more vectors to compare to on the server side
-                None => {
-                    self.cache = postcard::to_stdvec(&cache)?;
-                    return Ok(score);
-                },
+                None => return Ok(score),
             };
 
             info!("Encrypting vector...");
@@ -151,7 +120,11 @@ impl Client {
             let encryption_response = EncryptionResponse::EncryptedVector(encrypted_vector);
             self.write_frame(postcard::to_stdvec(&encryption_response)?)
                 .await?;
+
+            info!("Generating log table...");
+            log_table = fe::generate_table(g, 256);
         }
+
 
         Ok(i16::MIN)
     }
