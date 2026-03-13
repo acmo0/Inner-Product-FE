@@ -1,1 +1,1 @@
-pub const RANDOM_PADDING_LEN: usize = 64;
+pub const RANDOM_PADDING_LEN: usize = 128;

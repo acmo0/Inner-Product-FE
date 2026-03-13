@@ -1,7 +1,7 @@
 use anyhow::{Error, Result, anyhow};
 use core::array;
 use fe::traits::FEInstance;
-use fe::{Instance, PublicKey, SecretKey, RANDOM_PADDING_LEN};
+use fe::{Instance, PublicKey, RANDOM_PADDING_LEN, SecretKey};
 use futures::SinkExt;
 use futures::StreamExt;
 use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
@@ -161,18 +161,15 @@ fn generate_parameters_nilsimsa(
                 FHVector::<_>::NilsimsaVector(v_bytes) => {
                     // The first coordinates are the bits of the fuzzy hash
                     // the remaining ones are zeros except the k-th coordinate
-                    let v: [u8; VECTOR_SIZE] =
-                        array::from_fn(|i| {
-                            if i < NILSIMSA_VECTOR_SIZE_BITS {
-                                1 & (v_bytes[i / 8] >> (7 - (i % 8)))
-                            } else {
-                                if i - NILSIMSA_VECTOR_SIZE_BITS == k {
-                                    1
-                                } else {
-                                    0
-                                }
-                            }
-                        });
+                    let v: [u8; VECTOR_SIZE] = array::from_fn(|i| {
+                        if i < NILSIMSA_VECTOR_SIZE_BITS {
+                            1 & (v_bytes[i / 8] >> (7 - (i % 8)))
+                        } else if i - NILSIMSA_VECTOR_SIZE_BITS == k {
+                            1
+                        } else {
+                            0
+                        }
+                    });
                     return instance.secret_key(v);
                 }
             };

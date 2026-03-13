@@ -1,19 +1,13 @@
 use anyhow::Result;
-use fe::traits::FEPubKey;
-use fe::{
-    RANDOM_PADDING_LEN, CipherText, CompressedGroupElement, GroupElement, LogTable, PublicKey, Scalar, curve25519_dalek,
-};
 use fe::curve25519_dalek::traits::Identity;
-use std::array;
+use fe::traits::FEPubKey;
+use fe::{CipherText, GroupElement, LogTable, RANDOM_PADDING_LEN, Scalar};
 use futures::SinkExt;
 use futures::StreamExt;
 use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
-use log::{debug, info, warn};
+use log::{debug, info};
 use messages::{EncryptionRequest, EncryptionResponse, HashComparisonRequest};
-use postcard;
-use std::collections::HashMap;
-use std::error::Error;
-use tokio::io::AsyncWriteExt;
+use std::array;
 use tokio::net::TcpStream;
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
@@ -50,12 +44,11 @@ impl Client {
     pub fn new(stream: TcpStream, fuzzy_hash: FHVector<u8>) -> Self {
         Self { stream, fuzzy_hash }
     }
-
     pub async fn start(&mut self) -> Result<i16> {
         info!("Started connection with server");
 
         let message = match self.fuzzy_hash {
-            FHVector::NilsimsaVector(v) => HashComparisonRequest::NILSIMSA,
+            FHVector::NilsimsaVector(_) => HashComparisonRequest::NILSIMSA,
         };
 
         // Init similarity score
@@ -86,21 +79,18 @@ impl Client {
             debug!("Received a public key from the server");
 
             // Update similarity score if any
-            match encryption_rq.similarity_scores {
-                Some(scores) => {
-                    for (i, s) in scores.into_iter().enumerate() {
-                        let log_s = match log_table.get(&(s - randoms[i] * g).compress()) {
-                            Some(i) => *i,
-                            None => u16::MIN,
-                        };
-                        let similarity_score: i16 =
-                            128 - (((NILSIMSA_VECTOR_SIZE_BITS >> 1) as i16) - (log_s as i16));
-                        if similarity_score > score {
-                            score = similarity_score;
-                        }
+            if let Some(scores) = encryption_rq.similarity_scores {
+                for (i, s) in scores.into_iter().enumerate() {
+                    let log_s = match log_table.get(&(s - randoms[i] * g).compress()) {
+                        Some(i) => *i,
+                        None => u16::MIN,
+                    };
+                    let similarity_score: i16 =
+                        128 - (((NILSIMSA_VECTOR_SIZE_BITS >> 1) as i16) - (log_s as i16));
+                    if similarity_score > score {
+                        score = similarity_score;
                     }
                 }
-                None => {}
             }
 
             // Retrieve the pk if any
@@ -112,8 +102,8 @@ impl Client {
 
             info!("Encrypting vector...");
             g = pk.get_gen();
-            let mut encrypted_vector: CipherText<VECTOR_SIZE>;
-            
+
+            let encrypted_vector: CipherText<VECTOR_SIZE>;
             (encrypted_vector, randoms) = pk.encrypt_random_pad(&mut rng, vector);
 
             info!("Sending ct to server");
@@ -124,7 +114,6 @@ impl Client {
             info!("Generating log table...");
             log_table = fe::generate_table(g, 256);
         }
-
 
         Ok(i16::MIN)
     }

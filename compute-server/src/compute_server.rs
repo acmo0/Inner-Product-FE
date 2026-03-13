@@ -1,7 +1,10 @@
-use rayon::prelude::*;
-use anyhow::{Error, Result, anyhow};
-use fe::{GroupElement, PublicKey, SecretKey, traits::FESecretKey, RANDOM_PADDING_LEN};
+use anyhow::{Error, Result};
+use fe::{
+    CompressedSecretKey, GroupElement, PublicKey, RANDOM_PADDING_LEN, SecretKey,
+    traits::FESecretKey,
+};
 use log::{debug, error, info};
+use rayon::prelude::*;
 use tokio::net::{TcpListener, TcpStream};
 
 use futures::SinkExt;
@@ -104,10 +107,13 @@ impl Server {
                         let compressed_response = self
                             .retrieve_secret_keys::<VECTOR_SIZE>(hashes_batch)
                             .await?;
-                        match compressed_response.decompress() {
-                            Ok(decompressed) => batches.push(decompressed),
+
+                        batches.push((compressed_response.0, compressed_response.1))
+
+                        /*                        match compressed_response {
+                            Ok(decompressed) => ,
                             _ => return Err(anyhow!("Unable to retrieve vectors from authority")),
-                        }
+                        }*/
                     }
                     batches
                 }
@@ -143,7 +149,7 @@ impl Server {
 struct ClientHandler<const N: usize> {
     stream: TcpStream,
     hash_type: HashComparisonRequest,
-    keys: Vec<(PublicKey<N>, Vec<SecretKey<N>>)>,
+    keys: Vec<(PublicKey<N>, Vec<CompressedSecretKey>)>,
 }
 
 impl ClientHandler<VECTOR_SIZE> {
@@ -175,12 +181,10 @@ impl ClientHandler<VECTOR_SIZE> {
 
         for (pk, sks) in &self.keys {
             let message = match self.hash_type {
-                HashComparisonRequest::NILSIMSA => {
-                    EncryptionRequest::<VECTOR_SIZE, GroupElement> {
-                        pk: Some(pk.clone()),
-                        similarity_scores: Some(scores.clone()),
-                    }
-                }
+                HashComparisonRequest::NILSIMSA => EncryptionRequest::<VECTOR_SIZE, GroupElement> {
+                    pk: Some(pk.clone()),
+                    similarity_scores: Some(scores.clone()),
+                },
             };
 
             debug!("Sending PK to client");
@@ -199,7 +203,13 @@ impl ClientHandler<VECTOR_SIZE> {
                 EncryptionResponse::<_>::EndOfComparison => break,
             };
 
-            scores = sks.par_iter().map(|sk| sk.partial_decrypt(ct)).collect();
+            scores = sks
+                .par_iter()
+                .map(|sk: &CompressedSecretKey| {
+                    let sk_decompressed: SecretKey<VECTOR_SIZE> = sk.try_into().unwrap();
+                    sk_decompressed.partial_decrypt(ct)
+                })
+                .collect();
         }
 
         // Send to client the "end of the db"

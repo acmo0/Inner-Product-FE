@@ -10,12 +10,12 @@ use rand::{
     rngs::{StdRng, SysRng},
 };
 
+use crate::consts::RANDOM_PADDING_LEN;
 use crate::generic::{
     CompressedDdhFeSecretKey, DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey,
     MskItem,
 };
 use crate::traits::{FECipherText, FEInstance, FEPubKey, FESecretKey};
-use crate::consts::RANDOM_PADDING_LEN;
 /*
     Type aliases (shared by both ec_fe.rs and ff_fe.rs)
 */
@@ -92,13 +92,16 @@ impl<const N: usize> PublicKey<N> {
         self.g
     }
 
-    fn encrypt_scalar_vec<R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [Scalar; N]) -> CipherText<N> {
+    fn encrypt_scalar_vec<R: CryptoRng + ?Sized>(
+        &self,
+        rng: &mut R,
+        vector: [Scalar; N],
+    ) -> CipherText<N> {
         let r = Scalar::random(rng);
 
         let c = r * self.g;
         let d = r * self.h;
-        let e: [RistrettoPoint; N] =
-            array::from_fn(|i| vector[i] * self.g + r * self.mpk[i]);
+        let e: [RistrettoPoint; N] = array::from_fn(|i| vector[i] * self.g + r * self.mpk[i]);
 
         DdhFeCiphertext { c, d, e }
     }
@@ -176,16 +179,18 @@ where
 {
     fn encrypt<R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; N]) -> CipherText<N> {
         let v: [Scalar; N] = array::from_fn(|i| Scalar::from(vector[i]));
-        
+
         self.encrypt_scalar_vec(rng, v)
     }
 
-    fn encrypt_random_pad<const L: usize, R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; L])
-        -> (CipherText<N>, [Scalar; RANDOM_PADDING_LEN])
-    {
+    fn encrypt_random_pad<const L: usize, R: CryptoRng + ?Sized>(
+        &self,
+        rng: &mut R,
+        vector: [T; L],
+    ) -> (CipherText<N>, [Scalar; RANDOM_PADDING_LEN]) {
         assert!(L + RANDOM_PADDING_LEN == N);
 
-        let random_padding: [Scalar; RANDOM_PADDING_LEN] = array::from_fn(|i| Scalar::random(rng));
+        let random_padding: [Scalar; RANDOM_PADDING_LEN] = array::from_fn(|_i| Scalar::random(rng));
         let vector_with_padding: [Scalar; N] = array::from_fn(|i| {
             if i < L {
                 Scalar::from(vector[i])
@@ -263,7 +268,6 @@ impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
 pub type LogTable = HashMap<CompressedRistretto, u16>;
 
 pub fn generate_table(generator: RistrettoPoint, bound: u16) -> LogTable {
-    let mut i: u16 = 0;
     let mut table = HashMap::new();
     let mut p = RistrettoPoint::identity();
 

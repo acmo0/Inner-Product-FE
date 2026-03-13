@@ -7,12 +7,12 @@
 //! * S : type of the inner product value
 //! * T : type of input vector element
 
-use crate::generic::{DdhFeCiphertext, DdhFePublicKey, DdhFeSecretKey};
 use crate::RANDOM_PADDING_LEN;
+use crate::generic::{DdhFeCiphertext, DdhFePublicKey, DdhFeSecretKey};
+use curve25519_dalek::Scalar;
 use rand::CryptoRng;
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::Copy;
-use curve25519_dalek::Scalar;
 
 /// Trait for a generic functionnal encryption instance. The idea is that an instance should
 /// be able to generate a public key made of group element for an arbitrary sized vector, and
@@ -35,9 +35,11 @@ pub trait FEInstance<const N: usize, U, V> {
 pub trait FEPubKey<const N: usize, T, U, V>: Serialize + DeserializeOwned {
     /// Encrypt the given vector
     fn encrypt<R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; N]) -> DdhFeCiphertext<N, U>;
-    fn encrypt_random_pad<const L: usize, R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; L])
-        -> (DdhFeCiphertext<N, U>, [Scalar; RANDOM_PADDING_LEN]);
-    
+    fn encrypt_random_pad<const L: usize, R: CryptoRng + ?Sized>(
+        &self,
+        rng: &mut R,
+        vector: [T; L],
+    ) -> (DdhFeCiphertext<N, U>, [Scalar; RANDOM_PADDING_LEN]);
 }
 
 /// Trait for a generic secret key for the functionnal encryption scheme. The idea is that it

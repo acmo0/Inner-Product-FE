@@ -3,9 +3,9 @@ use anyhow::anyhow;
 use clap::Parser;
 use fuzzy_hashes::{FHVector, Nilsimsa};
 use log::{debug, info};
-use std::fs::{self, File};
+use std::fs::File;
+use std::io::BufReader;
 use std::io::Read;
-use std::io::{BufRead, BufReader};
 use tokio::net::TcpStream;
 
 mod client;
@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
     // Read the file and hash it
     let mut f = File::open(&args.file)?;
     let mut reader = BufReader::new(f);
-    let mut hash: FHVector<u8>;
+    let hash: FHVector<u8>;
 
     if args.nilsimsa {
         debug!("Hashing using nilsimsa");
