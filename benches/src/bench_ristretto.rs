@@ -25,7 +25,7 @@ fn bench_fe(c: &mut Criterion) {
         rand_bit_vector[i] = e % 2;
     }
 
-    group.bench_function("Setup", |b| { b.iter(instance.secret_key(black_box(rand_bit_vector))) });
+    group.bench_function("Setup", |b| { b.iter(|| instance.secret_key(black_box(rand_bit_vector))) });
 
     group.bench_function("Encrypt", |b| {
         b.iter(|| pk.encrypt(&mut rng, black_box(rand_bit_vector)))
