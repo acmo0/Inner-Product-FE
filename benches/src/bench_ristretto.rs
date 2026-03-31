@@ -35,6 +35,10 @@ fn bench_fe(c: &mut Criterion) {
     let sk = instance.secret_key(rand_bit_vector);
     let bound = N as u16;
 
+    group.bench_function("Partial-decrypt", |b| {
+        b.iter(|| sk.partial_decrypt(black_box(ct.clone())))
+    });
+
     group.bench_function("Decrypt", |b| {
         b.iter(|| sk.decrypt(black_box(ct.clone()), black_box(bound.clone())))
     });
