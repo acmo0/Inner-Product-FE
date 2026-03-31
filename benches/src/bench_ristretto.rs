@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use fe::Instance;
-use fe::traits::{FEInstance, FEPrivKey, FEPubKey};
+use fe::traits::{FEInstance, FESecretKey, FEPubKey};
 use rand::RngExt;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
