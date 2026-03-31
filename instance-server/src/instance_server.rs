@@ -4,7 +4,7 @@ use fe::traits::FEInstance;
 use fe::{Instance, PublicKey, RANDOM_PADDING_LEN, SecretKey};
 use futures::SinkExt;
 use futures::StreamExt;
-use log::{error, info};
+use log::{error, info, debug};
 use messages::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
 use messages::{GenerateInstanceRequest, GenerateInstanceResponse};
 use std::mem;
