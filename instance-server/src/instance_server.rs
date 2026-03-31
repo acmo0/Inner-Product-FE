@@ -98,7 +98,7 @@ impl ClientHandler {
                 return Err(error.into());
             }
         };
-        info!("Received {} vectors from client", incomming_vectors.len());
+        debug!("Received {} vectors from client", incomming_vectors.len());
 
         // Ensure that incomming vectors are homogeneous in their length, type
         // and that the number of request vectors are less that the maximum allowed
@@ -113,13 +113,13 @@ impl ClientHandler {
 
         // Once the vectors are "accepted", then generate an instance and derive a public key
         // and compute all the secrets keys for the requested vectors
-        info!("Generate parameters");
+        debug!("Generate parameters");
         match incomming_vectors[0] {
             FHVector::<_>::NilsimsaVector(_) => {
                 let response = generate_parameters_nilsimsa(incomming_vectors);
-                info!("Encoding response");
+                debug!("Encoding response");
                 self.write_frame(postcard::to_stdvec(&response)?).await?;
-                info!("Sended public key/secret keys to client")
+                debug!("Sended public key/secret keys to client")
             }
         }
         Ok(())
