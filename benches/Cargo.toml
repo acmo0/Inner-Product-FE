@@ -3,8 +3,15 @@ name = "benches"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+debug = true
+codegen-units = 1
+lto = "fat"
+panic = "abort"
+
+
 [dependencies]
-criterion = "0.8.1"
+criterion = {version = "0.8.1", features = ["html_reports"]}
 rand = { version = "0.10.0-rc.8" }
 fe = { path = "../fe", default-features = false }
 
@@ -17,4 +24,3 @@ harness = false
 name = "Nilsimsa-comparator"
 path = "src/bench_nilsimsa_comparator.rs"
 harness = false
-required-features = ["elliptic-curve"]
