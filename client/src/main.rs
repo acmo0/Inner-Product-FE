@@ -1,8 +1,9 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use clap::Parser;
-use fuzzy_hashes::{FHVector, Nilsimsa};
 use log::{debug, info};
+use messages::FHVector;
+use nilsimsa::Nilsimsa;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::Read;
@@ -23,7 +24,7 @@ struct Cli {
 }
 
 // 2^24 bytes
-const BUF_SIZE: usize = 16777216;
+const BUF_SIZE: usize = 1usize << 24;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,7 +35,7 @@ async fn main() -> Result<()> {
     info!("Computing fuzzy hash for {}", &args.file.display());
 
     // Read the file and hash it
-    let mut f = File::open(&args.file)?;
+    let f = File::open(&args.file)?;
     let mut reader = BufReader::new(f);
     let hash: FHVector<u8>;
 
@@ -48,9 +49,10 @@ async fn main() -> Result<()> {
             if c == 0 {
                 break;
             }
-            hasher.update(&buffer[..c]);
+            hasher.update(str::from_utf8(&buffer[..c])?);
         }
-        hash = FHVector::from(hasher.digest());
+        let computed_fh: Vec<u8> = hex::decode(hasher.digest())?;
+        hash = FHVector::try_from(computed_fh).expect("Unable to compute fuzzy hash.");
     } else if args.sdhash {
         return Err(anyhow!("Not implemented"));
     } else {
@@ -59,9 +61,10 @@ async fn main() -> Result<()> {
 
     debug!("Computed hash : {:?}", hash);
 
-    // Connect to a peer
-    let mut stream = TcpStream::connect(&args.compute_addr).await?;
+    // Connect to the compute server
+    let stream = TcpStream::connect(&args.compute_addr).await?;
 
+    // Init a new client
     let mut client = Client::new(stream, hash);
     let max_similarity_score = client.start().await?;
 

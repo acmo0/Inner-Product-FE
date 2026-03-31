@@ -8,22 +8,10 @@ criterion = "0.8.1"
 rand = { version = "0.10.0-rc.8" }
 fe = { path = "../fe", default-features = false }
 
-[features]
-elliptic-curve = ["fe/elliptic-curve"]
-finite-field = ["fe/finite-field"]
-
 [[bench]]
 name = "DDH-EC-FE"
 path = "src/bench_ristretto.rs"
 harness = false
-required-features = ["elliptic-curve"]
-
-[[bench]]
-name = "DDH-FF-FE"
-path = "src/bench_ristretto.rs"
-harness = false
-required-features = ["finite-field"]
-
 
 [[bench]]
 name = "Nilsimsa-comparator"

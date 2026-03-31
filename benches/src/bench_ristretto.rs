@@ -10,10 +10,7 @@ use std::hint::black_box;
 const N: usize = 512;
 
 fn bench_fe(c: &mut Criterion) {
-    #[cfg(feature = "elliptic-curve")]
-    let mut group = c.benchmark_group("Ristretto FE");
-    #[cfg(feature = "finite-field")]
-    let mut group = c.benchmark_group("DH n°15 FE");
+    let mut group = c.benchmark_group("Ristretto255 FE");
 
     let instance = Instance::<N>::setup();
     let pk = instance.public_key::<u8>();
@@ -22,16 +19,20 @@ fn bench_fe(c: &mut Criterion) {
     let mut rand_bit_vector = [0u8; N];
     let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
     rng.fill(&mut vector);
+
     // Bit vector
     for (i, e) in vector.iter().enumerate() {
         rand_bit_vector[i] = e % 2;
     }
+
+    group.bench_function("Setup", |b| instance.secret_key(black_box(rand_bit_vector)));
+
     group.bench_function("Encrypt", |b| {
-        b.iter(|| pk.encrypt(&mut rng, black_box(vector)))
+        b.iter(|| pk.encrypt(&mut rng, black_box(rand_bit_vector)))
     });
 
-    let ct = pk.encrypt(&mut rng, vector);
-    let sk = instance.secret_key(vector);
+    let ct = pk.encrypt(&mut rng, rand_bit_vector);
+    let sk = instance.secret_key(rand_bit_vector);
     let bound = N as u16;
 
     group.bench_function("Decrypt", |b| {

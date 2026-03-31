@@ -1,24 +1,21 @@
 use anyhow::{Error, Result};
-use fe::{
-    CompressedSecretKey, GroupElement, PublicKey, RANDOM_PADDING_LEN, SecretKey,
-    traits::FESecretKey,
-};
 use log::{debug, error, info};
 use rayon::prelude::*;
 use tokio::net::{TcpListener, TcpStream};
-
 use futures::SinkExt;
 use futures::StreamExt;
-use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
-use messages::{
-    EncryptionRequest, EncryptionResponse, GenerateInstanceResponse, HashComparisonRequest,
-};
 use rusqlite::Connection;
 use rusqlite::named_params;
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
-use comparator::Comparator;
+use fe::{
+    CompressedSecretKey, GroupElement, PublicKey, RANDOM_PADDING_LEN, SecretKey,
+    traits::FESecretKey,
+};
+use messages::{EncryptionRequest, EncryptionResponse, GenerateInstanceResponse, HashComparisonRequest, FHVector, NILSIMSA_VECTOR_SIZE_BITS};
 
+
+// Stateful server for a single client
 #[derive(Debug)]
 pub struct Server {
     listener: TcpListener,
@@ -26,10 +23,12 @@ pub struct Server {
     authority_addr: String,
 }
 
+// SQL query to retrieve fuzzy hashes from a DB
 const VECTOR_SIZE: usize = NILSIMSA_VECTOR_SIZE_BITS + RANDOM_PADDING_LEN;
 const FH_SQL_QUERY: &str = "SELECT fh FROM fuzzy_hashes WHERE type == :hash_type";
 
 impl Server {
+    // Create new server
     pub fn new(listener: TcpListener, db_connection: Connection, authority_addr: String) -> Self {
         Self {
             listener,
@@ -38,6 +37,7 @@ impl Server {
         }
     }
 
+    // Retrieve all the fuzzy hashes from the database
     fn get_nilsimsa_hashes(&self) -> Result<Vec<FHVector<u8>>> {
         let mut nilsimsa_statement = self.db_connection.prepare(FH_SQL_QUERY)?;
 
@@ -52,18 +52,22 @@ impl Server {
         Ok(vectors)
     }
 
+    // Ask the authority for a secret key to each fuzzy hash
     async fn retrieve_secret_keys<const N: usize>(
         &self,
         vectors: &[FHVector<u8>],
     ) -> Result<GenerateInstanceResponse<N>> {
+        // Connect to authority
         let mut authority_stream = TcpStream::connect(&self.authority_addr).await?;
         info!("Connection opened with authority");
 
+        // Send the fuzzy hashes
         let mut writer = FramedWrite::new(&mut authority_stream, LengthDelimitedCodec::new());
         let serialized = postcard::to_stdvec(vectors)?;
         writer.send(serialized.into()).await.unwrap();
         info!("Sended vectors to authority");
 
+        // Retrieve the server key from the authority
         let mut reader = FramedRead::new(&mut authority_stream, LengthDelimitedCodec::new());
         let frame = reader.next().await.unwrap().unwrap();
 
@@ -89,8 +93,8 @@ impl Server {
             let requested_hash_type: HashComparisonRequest =
                 postcard::from_bytes(&frame).expect("Failed to understand client request");
 
+            // Loading fuzzy hashes from db
             info!("Loading {:?} fuzzy hashes", requested_hash_type);
-
             let hashes = match requested_hash_type {
                 HashComparisonRequest::NILSIMSA => match self.get_nilsimsa_hashes() {
                     Err(error) => return Err(error),
@@ -98,29 +102,29 @@ impl Server {
                 },
             };
 
+            // Ask the authority for the secret keys
             info!("Loaded {} fuzzy hashes", hashes.len());
             info!("Query authority server for secret keys");
             let keys = match requested_hash_type {
                 HashComparisonRequest::NILSIMSA => {
                     let mut batches = vec![];
+                    // Process the entire database by chunk otherwise the
+                    // authority will refuse to give the secret keys if
+                    // we ask for too many of them.
                     for hashes_batch in hashes.chunks(RANDOM_PADDING_LEN) {
                         let compressed_response = self
                             .retrieve_secret_keys::<VECTOR_SIZE>(hashes_batch)
                             .await?;
 
                         batches.push((compressed_response.0, compressed_response.1))
-
-                        /*                        match compressed_response {
-                            Ok(decompressed) => ,
-                            _ => return Err(anyhow!("Unable to retrieve vectors from authority")),
-                        }*/
                     }
+
                     batches
                 }
             };
 
             info!("Received pk/sk from authority");
-
+            // Spawn a handler for that client
             tokio::spawn(async move {
                 let mut client_handler = ClientHandler {
                     stream: s,
@@ -146,6 +150,9 @@ impl Server {
     }
 }
 
+/*
+    Single client handling
+*/
 struct ClientHandler<const N: usize> {
     stream: TcpStream,
     hash_type: HashComparisonRequest,
@@ -153,22 +160,6 @@ struct ClientHandler<const N: usize> {
 }
 
 impl ClientHandler<VECTOR_SIZE> {
-    /// The protocol is using framed content, encoded by prefixing the length of the payload
-    /// This reads an entire frame and returns what the readed frame.
-    async fn read_frame(&mut self) -> Result<Vec<u8>> {
-        let mut reader = FramedRead::new(&mut self.stream, LengthDelimitedCodec::new());
-        let frame = reader.next().await.unwrap().unwrap().to_vec();
-        Ok(frame)
-    }
-
-    /// The protocol is using framed content, encoded by prefixing the length of the payload
-    /// This write an entire frame made of the given bytes.
-    async fn write_frame(&mut self, bytes: Vec<u8>) -> Result<()> {
-        let mut writer = FramedWrite::new(&mut self.stream, LengthDelimitedCodec::new());
-        writer.send(bytes.into()).await?;
-        Ok(())
-    }
-
     pub async fn handle_client(&mut self) -> Result<()> {
         // Split between read and write
         let (mut rx, mut tx) = self.stream.split();
@@ -177,9 +168,12 @@ impl ClientHandler<VECTOR_SIZE> {
         let mut writer = FramedWrite::new(&mut tx, LengthDelimitedCodec::new());
         let mut reader = FramedRead::new(&mut rx, LengthDelimitedCodec::new());
 
+        // Store the partial decryption for each batch
         let mut scores: Vec<GroupElement> = vec![];
 
         for (pk, sks) in &self.keys {
+            // Send the right message to the client depending on the
+            // request that was made.
             let message = match self.hash_type {
                 HashComparisonRequest::NILSIMSA => EncryptionRequest::<VECTOR_SIZE, GroupElement> {
                     pk: Some(pk.clone()),
@@ -187,9 +181,11 @@ impl ClientHandler<VECTOR_SIZE> {
                 },
             };
 
+            // Sending the public key to the client 
             debug!("Sending PK to client");
             writer.send(postcard::to_stdvec(&message)?.into()).await?;
 
+            // Retrieve the encryption sent by the client
             let encrypted_vector = match self.hash_type {
                 HashComparisonRequest::NILSIMSA => {
                     postcard::from_bytes::<EncryptionResponse<VECTOR_SIZE>>(
@@ -198,11 +194,13 @@ impl ClientHandler<VECTOR_SIZE> {
                 }
             };
 
+            // Check if the client send an encryption or a EndOfComparison request
             let ct = match encrypted_vector {
                 EncryptionResponse::<_>::EncryptedVector(ct) => ct,
                 EncryptionResponse::<_>::EndOfComparison => break,
             };
 
+            // Naive parallelization of the partial decryptions
             scores = sks
                 .par_iter()
                 .map(|sk: &CompressedSecretKey| {

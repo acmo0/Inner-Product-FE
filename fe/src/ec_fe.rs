@@ -30,6 +30,8 @@ pub type SecretKey<const N: usize> = DdhFeSecretKey<N, Scalar, RistrettoPoint>;
 pub type CompressedSecretKey = CompressedDdhFeSecretKey<Scalar, CompressedRistretto, u8>;
 /// FE ciphertext over Ristretto255 curve for arbitrary vector size.
 pub type CipherText<const N: usize> = DdhFeCiphertext<N, RistrettoPoint>;
+/// Lookup table for discrete logarithm
+pub type LogTable = HashMap<CompressedRistretto, u16>;
 
 /// Implementation of From and TryFrom to allow easy compression/decompression
 /// between a CompressedSecretKey and a SecretKey
@@ -265,8 +267,7 @@ impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
     }
 }
 
-pub type LogTable = HashMap<CompressedRistretto, u16>;
-
+/// Generate a lookup table : [0]G, [1]G, ..., [bound]G for a given bound and a given G.
 pub fn generate_table(generator: RistrettoPoint, bound: u16) -> LogTable {
     let mut table = HashMap::new();
     let mut p = RistrettoPoint::identity();

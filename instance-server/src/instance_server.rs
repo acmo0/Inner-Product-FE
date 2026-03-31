@@ -4,8 +4,8 @@ use fe::traits::FEInstance;
 use fe::{Instance, PublicKey, RANDOM_PADDING_LEN, SecretKey};
 use futures::SinkExt;
 use futures::StreamExt;
-use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
 use log::{error, info};
+use messages::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
 use messages::{GenerateInstanceRequest, GenerateInstanceResponse};
 use std::mem;
 use tokio::net::{TcpListener, TcpStream};
@@ -30,7 +30,7 @@ impl Server {
 
     pub async fn run(&mut self) -> Result<()> {
         loop {
-            let mut s = match self.accept_conn().await {
+            let s = match self.accept_conn().await {
                 Ok(stream) => stream,
                 Err(e) => {
                     error!("{}", e);
@@ -129,7 +129,7 @@ impl ClientHandler {
 /// Helper function, this function ensures that the vectors are all the same length, the same type
 /// and that it as at least one vector (and no more than the maximum number of vectors allowed )
 fn check_incomming_vectors(incomming_vectors: &GenerateInstanceRequest<u8>) -> Result<()> {
-    if incomming_vectors.len() == 0 {
+    if incomming_vectors.is_empty() {
         return Err(anyhow!("Received empty message, abort"));
     } else if incomming_vectors.len() > SERVER_MAX_LEN {
         return Err(anyhow!("Received too much vectors, abort"));
@@ -170,9 +170,9 @@ fn generate_parameters_nilsimsa(
                             0
                         }
                     });
-                    return instance.secret_key(v);
+                    instance.secret_key(v)
                 }
-            };
+            }
         })
         .collect();
 

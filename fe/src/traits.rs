@@ -35,6 +35,9 @@ pub trait FEInstance<const N: usize, U, V> {
 pub trait FEPubKey<const N: usize, T, U, V>: Serialize + DeserializeOwned {
     /// Encrypt the given vector
     fn encrypt<R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; N]) -> DdhFeCiphertext<N, U>;
+
+    /// Add a random padding at the end of the given vector before encrypting it.
+    /// The random padding is generated using the given RNG.
     fn encrypt_random_pad<const L: usize, R: CryptoRng + ?Sized>(
         &self,
         rng: &mut R,

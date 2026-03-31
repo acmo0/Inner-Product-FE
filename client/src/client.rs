@@ -1,26 +1,32 @@
-use anyhow::Result;
-use fe::curve25519_dalek::traits::Identity;
-use fe::traits::FEPubKey;
-use fe::{CipherText, GroupElement, LogTable, RANDOM_PADDING_LEN, Scalar};
 use futures::SinkExt;
 use futures::StreamExt;
-use fuzzy_hashes::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
-use log::{debug, info};
-use messages::{EncryptionRequest, EncryptionResponse, HashComparisonRequest};
 use std::array;
-use tokio::net::TcpStream;
-use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
+use anyhow::Result;
+use log::{debug, info};
 use rand::{
     SeedableRng,
     rngs::{StdRng, SysRng},
 };
+use tokio::net::TcpStream;
+use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
+use fe::curve25519_dalek::traits::Identity;
+use fe::traits::FEPubKey;
+use fe::{CipherText, GroupElement, LogTable, RANDOM_PADDING_LEN, Scalar};
+use messages::{
+    EncryptionRequest, EncryptionResponse, FHVector, HashComparisonRequest,
+    NILSIMSA_VECTOR_SIZE_BITS,
+};
+
+/// Structure for having a stateful client.
 pub struct Client {
     stream: TcpStream,
     fuzzy_hash: FHVector<u8>,
 }
 
+/// A vector size is defined by the length of a nilsimsa hash
+/// plus the random padding appended at the end.
 const VECTOR_SIZE: usize = RANDOM_PADDING_LEN + NILSIMSA_VECTOR_SIZE_BITS;
 
 impl Client {
@@ -44,6 +50,7 @@ impl Client {
     pub fn new(stream: TcpStream, fuzzy_hash: FHVector<u8>) -> Self {
         Self { stream, fuzzy_hash }
     }
+
     pub async fn start(&mut self) -> Result<i16> {
         info!("Started connection with server");
 
@@ -53,33 +60,39 @@ impl Client {
 
         // Init similarity score
         let mut score = i16::MIN;
+
         // Init the vector to compute the fuzzy hash comparison
         let vector = match self.fuzzy_hash {
             FHVector::NilsimsaVector(_) => {
                 self.fuzzy_hash.to_bits::<NILSIMSA_VECTOR_SIZE_BITS>()?
             }
         };
+
         // Init the RNG to perform encryption
         let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
+
+        // Init the lookup table for discrete log
         let mut log_table = LogTable::new();
         let mut randoms: [Scalar; RANDOM_PADDING_LEN] = array::from_fn(|_i| Scalar::ZERO);
         let mut g: GroupElement = GroupElement::identity();
 
-        // Compute the vector to compare fuzzy hashes
         info!("Sending request to server");
         self.write_frame(postcard::to_stdvec(&message)?).await?;
 
         loop {
+            // Retrieve the response from the server
             let encryption_rq = match self.fuzzy_hash {
                 FHVector::NilsimsaVector(_) => postcard::from_bytes::<
                     EncryptionRequest<VECTOR_SIZE, GroupElement>,
                 >(&self.read_frame().await?)?,
             };
 
-            debug!("Received a public key from the server");
+            debug!("Parsed a response from the server");
 
             // Update similarity score if any
             if let Some(scores) = encryption_rq.similarity_scores {
+                // For every score given by the server, undo the one time pad
+                // and retrieve the log value from the lookup table
                 for (i, s) in scores.into_iter().enumerate() {
                     let log_s = match log_table.get(&(s - randoms[i] * g).compress()) {
                         Some(i) => *i,
@@ -111,10 +124,10 @@ impl Client {
             self.write_frame(postcard::to_stdvec(&encryption_response)?)
                 .await?;
 
+            // Generating the next log table while the
+            // server is computing partial decryption
             info!("Generating log table...");
             log_table = fe::generate_table(g, 256);
         }
-
-        Ok(i16::MIN)
     }
 }

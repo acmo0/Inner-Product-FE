@@ -32,35 +32,13 @@
 //! let scalar_product = sk.decrypt(encrypted, 1000).unwrap();
 //! assert_eq!(scalar_product, (0..4).map(|i| (v1[i] as u16) * (v2[i] as u16)).sum());
 //! ```
-#[cfg(all(feature = "finite-field", feature = "elliptic-curve"))]
-compile_error!(
-    "Can't use both `elliptic-curve` and `finite-field` features. They are mutualy exclusive."
-);
 
-#[cfg(all(not(feature = "finite-field"), not(feature = "elliptic-curve")))]
-compile_error!(
-    "Must enable either `elliptic-curve` or `finite-field` features (they are mutualy exclusive)."
-);
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "elliptic-curve")] {
-        mod ec_fe;
-        pub use ec_fe::*;
-        pub use curve25519_dalek::RistrettoPoint as GroupElement;
-        pub use curve25519_dalek::ristretto::CompressedRistretto as CompressedGroupElement;
-        pub use curve25519_dalek::Scalar;
-        pub use curve25519_dalek;
-    } else if #[cfg(feature = "finite-field")] {
-        mod ff_fe;
-        mod consts;
-        pub use ff_fe::*;
-        pub use malachite;
-        pub use malachite::Natural;
-        pub type Scalar = Natural;
-        pub type CompressedGroupElement = Natural;
-        pub type GroupElement = Natural;
-    }
-}
+mod ec_fe;
+pub use curve25519_dalek;
+pub use curve25519_dalek::RistrettoPoint as GroupElement;
+pub use curve25519_dalek::Scalar;
+pub use curve25519_dalek::ristretto::CompressedRistretto as CompressedGroupElement;
+pub use ec_fe::*;
 
 mod consts;
 mod generic;
