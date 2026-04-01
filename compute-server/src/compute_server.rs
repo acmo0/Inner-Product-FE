@@ -176,7 +176,7 @@ impl ClientHandler<VECTOR_SIZE> {
             // request that was made.
             let message = match self.hash_type {
                 HashComparisonRequest::NILSIMSA => EncryptionRequest::<VECTOR_SIZE, GroupElement> {
-                    pk: Some(pk.clone()),
+                    pk: Some(pk.into()),
                     similarity_scores: Some(scores.clone()),
                 },
             };

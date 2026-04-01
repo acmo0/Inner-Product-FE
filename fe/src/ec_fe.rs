@@ -13,7 +13,7 @@ use rand::{
 use crate::consts::RANDOM_PADDING_LEN;
 use crate::generic::{
     CompressedDdhFeSecretKey, DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey,
-    MskItem,
+    MskItem, CompressedDdhFePublicKey,
 };
 use crate::traits::{FECipherText, FEInstance, FEPubKey, FESecretKey};
 /*
@@ -23,10 +23,13 @@ use crate::traits::{FECipherText, FEInstance, FEPubKey, FESecretKey};
 pub type Instance<const N: usize> = DdhFeInstance<N, Scalar, RistrettoPoint>;
 /// FE public key over Ristretto255 curve for arbitrary vector size.
 pub type PublicKey<const N: usize> = DdhFePublicKey<N, RistrettoPoint>;
+/// FE compressed public key to improve network bandwith and in-memory storage.
+pub type CompressedPublicKey<const N: usize> = CompressedDdhFePublicKey<N, CompressedRistretto>;
 /// FE secret key over Ristretto255 curve for arbitrary vector size.
 pub type SecretKey<const N: usize> = DdhFeSecretKey<N, Scalar, RistrettoPoint>;
 /// FE compressed secret key over Ristretto255 curve for arbitrary vector size. This is done to
-/// (greatly) improve the efficiency of the network transmission of the secret key structure.
+/// (greatly) improve the efficiency of the network transmission and in-memory stoage
+/// of the secret key structure.
 pub type CompressedSecretKey = CompressedDdhFeSecretKey<Scalar, CompressedRistretto, u8>;
 /// FE ciphertext over Ristretto255 curve for arbitrary vector size.
 pub type CipherText<const N: usize> = DdhFeCiphertext<N, RistrettoPoint>;
@@ -62,8 +65,6 @@ impl<const N: usize> From<&SecretKey<N>> for CompressedSecretKey {
     }
 }
 
-/// Implementation of From and TryFrom to allow easy compression/decompression
-/// between a CompressedSecretKey and a SecretKey
 impl<const N: usize> TryFrom<&CompressedSecretKey> for SecretKey<N> {
     type Error = ();
 
@@ -85,6 +86,51 @@ impl<const N: usize> TryFrom<&CompressedSecretKey> for SecretKey<N> {
             sx: value.sx,
             tx: value.tx,
             x,
+        })
+    }
+}
+
+/// Implementation of From and TryFrom to allow easy compression/decompression
+/// between a CompressedPublicKey and a PublicKey
+impl<const N: usize> From<&PublicKey<N>> for CompressedPublicKey<N> {
+    fn from(value: &PublicKey<N>) -> CompressedPublicKey<N> {
+        let g = value.g.compress();
+        let h = value.h.compress();
+        let mpk: [CompressedRistretto; N] = array::from_fn(|i| value.mpk[i].compress());
+
+        CompressedPublicKey {
+            g,
+            h,
+            mpk,
+        }
+    }
+}
+impl<const N: usize> TryFrom<&CompressedPublicKey<N>> for PublicKey<N> {
+    type Error = ();
+
+    fn try_from(value: &CompressedPublicKey<N>) -> Result<Self, Self::Error> {
+        // Decompress the two generators
+        let g = match value.g.decompress() {
+            Some(p) => p,
+            None => return Err(()),
+        };
+        let h = match value.h.decompress() {
+            Some(p) => p,
+            None => return Err(()),
+        };
+        
+        let mpk: [RistrettoPoint; N] = array::from_fn(|_| RistrettoPoint::identity());
+        for (mut dec, comp) in mpk.into_iter().zip(value.mpk) {
+            dec = match comp.decompress() {
+                Some(p) => p,
+                None => return Err(()),
+            };
+        }
+
+        Ok(PublicKey {
+            g,
+            h,
+            mpk
         })
     }
 }

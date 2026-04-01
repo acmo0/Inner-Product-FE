@@ -13,7 +13,7 @@ use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 use fe::curve25519_dalek::traits::Identity;
 use fe::traits::FEPubKey;
-use fe::{CipherText, GroupElement, LogTable, RANDOM_PADDING_LEN, Scalar};
+use fe::{PublicKey, CipherText, GroupElement, LogTable, RANDOM_PADDING_LEN, Scalar};
 use messages::{
     EncryptionRequest, EncryptionResponse, FHVector, HashComparisonRequest,
     NILSIMSA_VECTOR_SIZE_BITS,
@@ -107,8 +107,8 @@ impl Client {
             }
 
             // Retrieve the pk if any
-            let pk = match encryption_rq.pk {
-                Some(pk) => pk,
+            let pk: PublicKey<VECTOR_SIZE> = match &encryption_rq.pk {
+                Some(pk) => pk.try_into().unwrap(),
                 // None means no more vectors to compare to on the server side
                 None => return Ok(score),
             };

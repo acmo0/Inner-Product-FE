@@ -3,7 +3,7 @@
 //! Module containing all the messages/types exchanged over the
 // nextwork between the Authority, the Compute Server and the Client.
 use anyhow::{Error, Result, anyhow};
-use fe::{CipherText, CompressedSecretKey, PublicKey, SecretKey};
+use fe::{CipherText, CompressedSecretKey, PublicKey, SecretKey, CompressedPublicKey};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
@@ -81,7 +81,7 @@ pub enum HashComparisonRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EncryptionRequest<const N: usize, T> {
     /// Field containing the public key to encrypt the fuzzy hash
-    pub pk: Option<PublicKey<N>>,
+    pub pk: Option<CompressedPublicKey<N>>,
     /// Potential similarity score of any computed by the server
     /// before sending that encryption request
     pub similarity_scores: Option<Vec<T>>,

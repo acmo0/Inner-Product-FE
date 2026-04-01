@@ -1,5 +1,6 @@
 target/
 *.db
 *.cache
-perf.data
+perf.data*
 flamegraph.svg
+*.pcap*

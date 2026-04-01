@@ -26,24 +26,47 @@ Ristretto255 FE/Decrypt time:   [5.0637 ms 5.0674 ms 5.0713 ms]
                         change: [−0.1600% +0.0792% +0.2964%] (p = 0.50 > 0.05)
                         No change in performance detected.
 
+Ristretto255 FE/Decompress
+                        time:   [6.1711 µs 6.1736 µs 6.1766 µs]
+                        change: [+6.3515% +6.4901% +6.6222%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) high mild
+  4 (4.00%) high severe
 
 ******************
 * SERIAL backend *
 ******************
 
-Ristretto255 FE/Setup   time:   [109.02 µs 109.37 µs 109.82 µs]
-Found 12 outliers among 100 measurements (12.00%)
-  4 (4.00%) high mild
+Ristretto255 FE/Setup   time:   [130.87 µs 130.96 µs 131.05 µs]
+                        change: [−2.4942% −1.3081% −0.3627%] (p = 0.01 < 0.05)
+                        Change within noise threshold.
+Found 26 outliers among 100 measurements (26.00%)
+  13 (13.00%) low severe
+  2 (2.00%) low mild
+  3 (3.00%) high mild
   8 (8.00%) high severe
-Ristretto255 FE/Encrypt time:   [44.590 ms 44.667 ms 44.771 ms]
-Found 7 outliers among 100 measurements (7.00%)
+Ristretto255 FE/Encrypt time:   [47.435 ms 47.490 ms 47.545 ms]
+                        change: [+54.765% +55.263% +55.791%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 2 outliers among 100 measurements (2.00%)
   2 (2.00%) high mild
-  5 (5.00%) high severe
 Ristretto255 FE/Partial-decrypt
-                        time:   [7.9803 ms 7.9991 ms 8.0224 ms]
-Found 10 outliers among 100 measurements (10.00%)
-  10 (10.00%) high severe
-Ristretto255 FE/Decrypt time:   [8.0285 ms 8.0435 ms 8.0631 ms]
-Found 12 outliers among 100 measurements (12.00%)
-  4 (4.00%) high mild
-  8 (8.00%) high severe
+                        time:   [8.6814 ms 8.6924 ms 8.7057 ms]
+                        change: [+74.665% +74.965% +75.279%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  5 (5.00%) high mild
+  9 (9.00%) high severe
+Ristretto255 FE/Decrypt time:   [8.8057 ms 8.8294 ms 8.8551 ms]
+                        change: [+74.873% +75.355% +75.920%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+
+Ristretto255 FE/Decompress
+                        time:   [6.1545 µs 6.1642 µs 6.1789 µs]
+                        change: [−0.3400% −0.2050% −0.0447%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 13 outliers among 100 measurements (13.00%)
+
