@@ -10,7 +10,7 @@ use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 use fe::{
     CompressedSecretKey, GroupElement, PublicKey, RANDOM_PADDING_LEN, SecretKey,
-    traits::FESecretKey,
+    traits::FESecretKey, CompressedGroupElement,
 };
 use messages::{EncryptionRequest, EncryptionResponse, GenerateInstanceResponse, HashComparisonRequest, FHVector, NILSIMSA_VECTOR_SIZE_BITS};
 
@@ -175,9 +175,9 @@ impl ClientHandler<VECTOR_SIZE> {
             // Send the right message to the client depending on the
             // request that was made.
             let message = match self.hash_type {
-                HashComparisonRequest::NILSIMSA => EncryptionRequest::<VECTOR_SIZE, GroupElement> {
+                HashComparisonRequest::NILSIMSA => EncryptionRequest::<VECTOR_SIZE, CompressedGroupElement> {
                     pk: Some(pk.into()),
-                    similarity_scores: Some(scores.clone()),
+                    similarity_scores: Some(scores.iter().map(|p| p.compress()).collect()),
                 },
             };
 

@@ -119,9 +119,10 @@ impl<const N: usize> TryFrom<&CompressedPublicKey<N>> for PublicKey<N> {
             None => return Err(()),
         };
         
-        let mpk: [RistrettoPoint; N] = array::from_fn(|_| RistrettoPoint::identity());
-        for (mut dec, comp) in mpk.into_iter().zip(value.mpk) {
-            dec = match comp.decompress() {
+        let mut mpk: [RistrettoPoint; N] = array::from_fn(|_| RistrettoPoint::identity());
+
+        for i in 0..N {
+            mpk[i] = match value.mpk[i].decompress() {
                 Some(p) => p,
                 None => return Err(()),
             };

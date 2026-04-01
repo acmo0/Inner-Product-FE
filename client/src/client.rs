@@ -13,7 +13,7 @@ use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 use fe::curve25519_dalek::traits::Identity;
 use fe::traits::FEPubKey;
-use fe::{PublicKey, CipherText, GroupElement, LogTable, RANDOM_PADDING_LEN, Scalar};
+use fe::{PublicKey, CipherText, CompressedGroupElement, GroupElement, LogTable, RANDOM_PADDING_LEN, Scalar};
 use messages::{
     EncryptionRequest, EncryptionResponse, FHVector, HashComparisonRequest,
     NILSIMSA_VECTOR_SIZE_BITS,
@@ -83,7 +83,7 @@ impl Client {
             // Retrieve the response from the server
             let encryption_rq = match self.fuzzy_hash {
                 FHVector::NilsimsaVector(_) => postcard::from_bytes::<
-                    EncryptionRequest<VECTOR_SIZE, GroupElement>,
+                    EncryptionRequest<VECTOR_SIZE, CompressedGroupElement>,
                 >(&self.read_frame().await?)?,
             };
 
@@ -93,7 +93,7 @@ impl Client {
             if let Some(scores) = encryption_rq.similarity_scores {
                 // For every score given by the server, undo the one time pad
                 // and retrieve the log value from the lookup table
-                for (i, s) in scores.into_iter().enumerate() {
+                for (i, s) in scores.into_iter().map(|p| p.decompress().expect("Unable to understad the server response")).enumerate() {
                     let log_s = match log_table.get(&(s - randoms[i] * g).compress()) {
                         Some(i) => *i,
                         None => u16::MIN,
