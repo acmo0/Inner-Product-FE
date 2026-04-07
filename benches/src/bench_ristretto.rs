@@ -1,7 +1,7 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use fe::{CompressedSecretKey, SecretKey, Instance};
+use fe::{CompressedSecretKey, Instance, SecretKey};
 
-use fe::traits::{FEInstance, FESecretKey, FEPubKey};
+use fe::traits::{FEInstance, FEPubKey, FESecretKey};
 use rand::RngExt;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -26,27 +26,31 @@ fn bench_fe(c: &mut Criterion) {
         rand_bit_vector[i] = e % 2;
     }
 
-/*    group.bench_function("Setup", |b| { b.iter(|| instance.secret_key(black_box(rand_bit_vector))) });
+    /*    group.bench_function("Setup", |b| { b.iter(|| instance.secret_key(black_box(rand_bit_vector))) });
 
-    group.bench_function("Encrypt", |b| {
-        b.iter(|| pk.encrypt(&mut rng, black_box(rand_bit_vector)))
-    });
-*/
+        group.bench_function("Encrypt", |b| {
+            b.iter(|| pk.encrypt(&mut rng, black_box(rand_bit_vector)))
+        });
+    */
     let ct = pk.encrypt(&mut rng, rand_bit_vector);
     let sk = instance.secret_key(rand_bit_vector);
     let sk_compressed: CompressedSecretKey = (&sk).into();
     let bound = N as u16;
 
-/*    group.bench_function("Partial-decrypt", |b| {
-        b.iter(|| sk.partial_decrypt(black_box(ct.clone())))
-    });
+    /*    group.bench_function("Partial-decrypt", |b| {
+            b.iter(|| sk.partial_decrypt(black_box(ct.clone())))
+        });
 
-    group.bench_function("Decrypt", |b| {
-        b.iter(|| sk.decrypt(black_box(ct.clone()), black_box(bound.clone())))
-    });
-*/
+        group.bench_function("Decrypt", |b| {
+            b.iter(|| sk.decrypt(black_box(ct.clone()), black_box(bound.clone())))
+        });
+    */
     group.bench_function("Decompress", |b| {
-        b.iter(|| black_box(<&CompressedSecretKey as TryInto<SecretKey<N>>>::try_into(&sk_compressed).unwrap()))
+        b.iter(|| {
+            black_box(
+                <&CompressedSecretKey as TryInto<SecretKey<N>>>::try_into(&sk_compressed).unwrap(),
+            )
+        })
     });
 }
 

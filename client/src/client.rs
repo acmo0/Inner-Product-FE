@@ -1,6 +1,7 @@
 use futures::SinkExt;
 use futures::StreamExt;
 use std::array;
+use std::time::Duration;
 
 use anyhow::Result;
 use log::{debug, info};
@@ -13,11 +14,15 @@ use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 use fe::curve25519_dalek::traits::Identity;
 use fe::traits::FEPubKey;
-use fe::{PublicKey, CipherText, CompressedGroupElement, GroupElement, LogTable, RANDOM_PADDING_LEN, Scalar};
+use fe::{
+    CipherText, CompressedGroupElement, GroupElement, LogTable, PublicKey, RANDOM_PADDING_LEN,
+    Scalar,
+};
 use messages::{
     EncryptionRequest, EncryptionResponse, FHVector, HashComparisonRequest,
     NILSIMSA_VECTOR_SIZE_BITS,
 };
+use cpu_time::ProcessTime;
 
 /// Structure for having a stateful client.
 pub struct Client {
@@ -77,6 +82,10 @@ impl Client {
         let mut g: GroupElement = GroupElement::identity();
 
         info!("Sending request to server");
+
+        // Measure CPU time
+        let start = ProcessTime::now();
+
         self.write_frame(postcard::to_stdvec(&message)?).await?;
 
         loop {
@@ -93,7 +102,14 @@ impl Client {
             if let Some(scores) = encryption_rq.similarity_scores {
                 // For every score given by the server, undo the one time pad
                 // and retrieve the log value from the lookup table
-                for (i, s) in scores.into_iter().map(|p| p.decompress().expect("Unable to understad the server response")).enumerate() {
+                for (i, s) in scores
+                    .into_iter()
+                    .map(|p| {
+                        p.decompress()
+                            .expect("Unable to understad the server response")
+                    })
+                    .enumerate()
+                {
                     let log_s = match log_table.get(&(s - randoms[i] * g).compress()) {
                         Some(i) => *i,
                         None => u16::MIN,
@@ -110,7 +126,11 @@ impl Client {
             let pk: PublicKey<VECTOR_SIZE> = match &encryption_rq.pk {
                 Some(pk) => pk.try_into().unwrap(),
                 // None means no more vectors to compare to on the server side
-                None => return Ok(score),
+                None => {
+                    let cpu_time: Duration = start.elapsed();
+                    info!("CPU Time : {:?}", cpu_time);
+                    return Ok(score)
+                },
             };
 
             info!("Encrypting vector...");

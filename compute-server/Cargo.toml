@@ -16,3 +16,4 @@ rusqlite = { version = "0.38.0", features = ["bundled"] }
 tokio-util = { version = "0.7.18", features = ["codec"] }
 futures = "0.3.31"
 rayon = "1.11.0"
+cpu-time = "1.0.0"

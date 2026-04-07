@@ -12,8 +12,8 @@ use rand::{
 
 use crate::consts::RANDOM_PADDING_LEN;
 use crate::generic::{
-    CompressedDdhFeSecretKey, DdhFeCiphertext, DdhFeInstance, DdhFePublicKey, DdhFeSecretKey,
-    MskItem, CompressedDdhFePublicKey,
+    CompressedDdhFePublicKey, CompressedDdhFeSecretKey, DdhFeCiphertext, DdhFeInstance,
+    DdhFePublicKey, DdhFeSecretKey, MskItem,
 };
 use crate::traits::{FECipherText, FEInstance, FEPubKey, FESecretKey};
 /*
@@ -98,11 +98,7 @@ impl<const N: usize> From<&PublicKey<N>> for CompressedPublicKey<N> {
         let h = value.h.compress();
         let mpk: [CompressedRistretto; N] = array::from_fn(|i| value.mpk[i].compress());
 
-        CompressedPublicKey {
-            g,
-            h,
-            mpk,
-        }
+        CompressedPublicKey { g, h, mpk }
     }
 }
 impl<const N: usize> TryFrom<&CompressedPublicKey<N>> for PublicKey<N> {
@@ -118,7 +114,7 @@ impl<const N: usize> TryFrom<&CompressedPublicKey<N>> for PublicKey<N> {
             Some(p) => p,
             None => return Err(()),
         };
-        
+
         let mut mpk: [RistrettoPoint; N] = array::from_fn(|_| RistrettoPoint::identity());
 
         for i in 0..N {
@@ -128,11 +124,7 @@ impl<const N: usize> TryFrom<&CompressedPublicKey<N>> for PublicKey<N> {
             };
         }
 
-        Ok(PublicKey {
-            g,
-            h,
-            mpk
-        })
+        Ok(PublicKey { g, h, mpk })
     }
 }
 

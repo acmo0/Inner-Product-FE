@@ -3,7 +3,7 @@
 //! Module containing all the messages/types exchanged over the
 // nextwork between the Authority, the Compute Server and the Client.
 use anyhow::{Error, Result, anyhow};
-use fe::{CipherText, CompressedSecretKey, PublicKey, SecretKey, CompressedPublicKey};
+use fe::{CipherText, CompressedPublicKey, CompressedSecretKey, PublicKey, SecretKey};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;

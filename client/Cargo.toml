@@ -17,3 +17,4 @@ clap = { version = "4.5.57", features = ["derive"] }
 rand = "0.10.0"
 nilsimsa = "0.2.1"
 hex = "0.4.3"
+cpu-time = "1.0.0"

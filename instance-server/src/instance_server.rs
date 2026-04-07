@@ -1,10 +1,13 @@
+use std::time::Duration;
+
+use cpu_time::ProcessTime;
 use anyhow::{Error, Result, anyhow};
 use core::array;
 use fe::traits::FEInstance;
 use fe::{Instance, PublicKey, RANDOM_PADDING_LEN, SecretKey};
 use futures::SinkExt;
 use futures::StreamExt;
-use log::{error, info, debug};
+use log::{debug, error, info};
 use messages::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
 use messages::{GenerateInstanceRequest, GenerateInstanceResponse};
 use std::mem;
@@ -89,6 +92,8 @@ impl ClientHandler {
     async fn handle_client(&mut self) -> Result<()> {
         info!("Handling new client");
 
+        let start = ProcessTime::now();
+
         // Read the incomming request and deserialize it to retrieve the GenerateInstanceRequest
         let frame = self.read_frame().await?;
         let incomming_vectors: GenerateInstanceRequest<u8> = match postcard::from_bytes(&frame) {
@@ -122,6 +127,9 @@ impl ClientHandler {
                 debug!("Sended public key/secret keys to client")
             }
         }
+
+        let cpu_time: Duration = start.elapsed();
+        info!("CPU Time for handling client : {:?}", cpu_time);
         Ok(())
     }
 }

@@ -251,6 +251,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "cpu-time",
  "env_logger",
  "fe",
  "futures",
@@ -285,6 +286,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "cpu-time",
  "env_logger",
  "fe",
  "futures",
@@ -295,6 +297,16 @@ dependencies = [
  "rusqlite",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "cpu-time"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9e393a7668fe1fad3075085b86c781883000b4ede868f43627b34a87c8b7ded"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]
@@ -499,6 +511,7 @@ dependencies = [
  "curve25519-dalek",
  "proptest",
  "rand 0.10.0",
+ "rayon",
  "serde",
  "serde-big-array",
 ]
@@ -744,6 +757,7 @@ name = "instance-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cpu-time",
  "env_logger",
  "fe",
  "futures",

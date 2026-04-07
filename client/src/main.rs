@@ -51,7 +51,9 @@ async fn main() -> Result<()> {
             }
             hasher.update(str::from_utf8(&buffer[..c])?);
         }
-        let computed_fh: [u8; 32] = hex::decode(hasher.digest())?.try_into().expect("Unable to compute fuzzy hash.");
+        let computed_fh: [u8; 32] = hex::decode(hasher.digest())?
+            .try_into()
+            .expect("Unable to compute fuzzy hash.");
         println!("{:?}", computed_fh);
         hash = FHVector::from(computed_fh);
     } else if args.sdhash {

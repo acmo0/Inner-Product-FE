@@ -1,19 +1,24 @@
+use std::time::Duration;
+
 use anyhow::{Error, Result};
-use log::{debug, error, info};
-use rayon::prelude::*;
-use tokio::net::{TcpListener, TcpStream};
+use cpu_time::ProcessTime;
 use futures::SinkExt;
 use futures::StreamExt;
+use log::{debug, error, info};
+use rayon::prelude::*;
 use rusqlite::Connection;
 use rusqlite::named_params;
+use tokio::net::{TcpListener, TcpStream};
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 use fe::{
-    CompressedSecretKey, GroupElement, PublicKey, RANDOM_PADDING_LEN, SecretKey,
-    traits::FESecretKey, CompressedGroupElement,
+    CompressedGroupElement, CompressedSecretKey, GroupElement, PublicKey, RANDOM_PADDING_LEN,
+    SecretKey, traits::FESecretKey,
 };
-use messages::{EncryptionRequest, EncryptionResponse, GenerateInstanceResponse, HashComparisonRequest, FHVector, NILSIMSA_VECTOR_SIZE_BITS};
-
+use messages::{
+    EncryptionRequest, EncryptionResponse, FHVector, GenerateInstanceResponse,
+    HashComparisonRequest, NILSIMSA_VECTOR_SIZE_BITS,
+};
 
 // Stateful server for a single client
 #[derive(Debug)]
@@ -105,6 +110,9 @@ impl Server {
             // Ask the authority for the secret keys
             info!("Loaded {} fuzzy hashes", hashes.len());
             info!("Query authority server for secret keys");
+
+            let start = ProcessTime::now();
+
             let keys = match requested_hash_type {
                 HashComparisonRequest::NILSIMSA => {
                     let mut batches = vec![];
@@ -122,6 +130,9 @@ impl Server {
                     batches
                 }
             };
+
+            let cpu_time: Duration = start.elapsed();
+            info!("CPU Time for querying secret keys {:?}", cpu_time);
 
             info!("Received pk/sk from authority");
             // Spawn a handler for that client
@@ -171,17 +182,21 @@ impl ClientHandler<VECTOR_SIZE> {
         // Store the partial decryption for each batch
         let mut scores: Vec<GroupElement> = vec![];
 
+        let start = ProcessTime::now();
+
         for (pk, sks) in &self.keys {
             // Send the right message to the client depending on the
             // request that was made.
             let message = match self.hash_type {
-                HashComparisonRequest::NILSIMSA => EncryptionRequest::<VECTOR_SIZE, CompressedGroupElement> {
-                    pk: Some(pk.into()),
-                    similarity_scores: Some(scores.iter().map(|p| p.compress()).collect()),
-                },
+                HashComparisonRequest::NILSIMSA => {
+                    EncryptionRequest::<VECTOR_SIZE, CompressedGroupElement> {
+                        pk: Some(pk.into()),
+                        similarity_scores: Some(scores.iter().map(|p| p.compress()).collect()),
+                    }
+                }
             };
 
-            // Sending the public key to the client 
+            // Sending the public key to the client
             debug!("Sending PK to client");
             writer.send(postcard::to_stdvec(&message)?.into()).await?;
 
@@ -221,6 +236,8 @@ impl ClientHandler<VECTOR_SIZE> {
         };
         writer.send(postcard::to_stdvec(&message)?.into()).await?;
 
+        let cpu_time: Duration = start.elapsed();
+        info!("CPU Time to handle client {:?}", cpu_time);
         info!("Handling client");
         Ok(())
     }
