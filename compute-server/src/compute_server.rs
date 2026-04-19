@@ -1,5 +1,10 @@
 use std::time::Duration;
 
+use rand::seq::SliceRandom;
+use rand::{
+    SeedableRng,
+    rngs::{StdRng, SysRng},
+};
 use anyhow::{Error, Result};
 use cpu_time::ProcessTime;
 use futures::SinkExt;
@@ -46,13 +51,17 @@ impl Server {
     fn get_nilsimsa_hashes(&self) -> Result<Vec<FHVector<u8>>> {
         let mut nilsimsa_statement = self.db_connection.prepare(FH_SQL_QUERY)?;
 
-        let vectors = nilsimsa_statement
+        let mut vectors: Vec<_> = nilsimsa_statement
             .query_map(named_params! {":hash_type": "nilsimsa"}, |row| {
                 let r: [u8; 32] = row.get("fh").expect("Malformed database");
                 Ok(FHVector::from(r))
             })?
             .map(|vector| vector.expect("Malformed fuzzy hash in database"))
             .collect();
+
+        // Shuffle the vectors
+        let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
+        vectors.shuffle(&mut rng);
 
         Ok(vectors)
     }
@@ -67,13 +76,16 @@ impl Server {
         info!("Connection opened with authority");
 
         // Send the fuzzy hashes
-        let mut writer = FramedWrite::new(&mut authority_stream, LengthDelimitedCodec::new());
+        let mut codec = LengthDelimitedCodec::new();
+        codec.set_max_frame_length(usize::MAX);
+
+        let mut writer = FramedWrite::new(&mut authority_stream, codec.clone());
         let serialized = postcard::to_stdvec(vectors)?;
         writer.send(serialized.into()).await.unwrap();
         info!("Sended vectors to authority");
 
         // Retrieve the server key from the authority
-        let mut reader = FramedRead::new(&mut authority_stream, LengthDelimitedCodec::new());
+        let mut reader = FramedRead::new(&mut authority_stream, codec);
         let frame = reader.next().await.unwrap().unwrap();
 
         let resp: GenerateInstanceResponse<N> = postcard::from_bytes(&frame)?;
@@ -114,21 +126,10 @@ impl Server {
             let start = ProcessTime::now();
 
             let keys = match requested_hash_type {
-                HashComparisonRequest::NILSIMSA => {
-                    let mut batches = vec![];
-                    // Process the entire database by chunk otherwise the
-                    // authority will refuse to give the secret keys if
-                    // we ask for too many of them.
-                    for hashes_batch in hashes.chunks(RANDOM_PADDING_LEN) {
-                        let compressed_response = self
-                            .retrieve_secret_keys::<VECTOR_SIZE>(hashes_batch)
-                            .await?;
-
-                        batches.push((compressed_response.0, compressed_response.1))
-                    }
-
-                    batches
-                }
+                HashComparisonRequest::NILSIMSA => self
+                    .retrieve_secret_keys::<VECTOR_SIZE>(&hashes)
+                    .await?
+                    .0
             };
 
             let cpu_time: Duration = start.elapsed();
@@ -220,7 +221,7 @@ impl ClientHandler<VECTOR_SIZE> {
                 .par_iter()
                 .map(|sk: &CompressedSecretKey| {
                     let sk_decompressed: SecretKey<VECTOR_SIZE> = sk.try_into().unwrap();
-                    sk_decompressed.partial_decrypt(ct)
+                    sk_decompressed.partial_decrypt(&ct)
                 })
                 .collect();
         }

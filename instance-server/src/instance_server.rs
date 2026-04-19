@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use rayon::prelude::*;
 use cpu_time::ProcessTime;
 use anyhow::{Error, Result, anyhow};
 use core::array;
@@ -75,7 +76,9 @@ impl ClientHandler {
     /// The protocol is using framed content, encoded by prefixing the length of the payload
     /// This reads an entire frame and returns what the readed frame.
     async fn read_frame(&mut self) -> Result<Vec<u8>> {
-        let mut reader = FramedRead::new(&mut self.stream, LengthDelimitedCodec::new());
+        let mut codec = LengthDelimitedCodec::new();
+        codec.set_max_frame_length(usize::MAX);
+        let mut reader = FramedRead::new(&mut self.stream, codec);
         let frame = reader.next().await.unwrap().unwrap().to_vec();
         Ok(frame)
     }
@@ -83,7 +86,9 @@ impl ClientHandler {
     /// The protocol is using framed content, encoded by prefixing the length of the payload
     /// This write an entire frame made of the given bytes.
     async fn write_frame(&mut self, bytes: Vec<u8>) -> Result<()> {
-        let mut writer = FramedWrite::new(&mut self.stream, LengthDelimitedCodec::new());
+        let mut codec = LengthDelimitedCodec::new();
+        codec.set_max_frame_length(usize::MAX);
+        let mut writer = FramedWrite::new(&mut self.stream, codec);
         writer.send(bytes.into()).await?;
         Ok(())
     }
@@ -139,9 +144,9 @@ impl ClientHandler {
 fn check_incomming_vectors(incomming_vectors: &GenerateInstanceRequest<u8>) -> Result<()> {
     if incomming_vectors.is_empty() {
         return Err(anyhow!("Received empty message, abort"));
-    } else if incomming_vectors.len() > SERVER_MAX_LEN {
+    } /*else if incomming_vectors.len() > SERVER_MAX_LEN {
         return Err(anyhow!("Received too much vectors, abort"));
-    }
+    }*/
 
     let all_same_kind = incomming_vectors
         .iter()
@@ -159,30 +164,38 @@ fn check_incomming_vectors(incomming_vectors: &GenerateInstanceRequest<u8>) -> R
 fn generate_parameters_nilsimsa(
     requested_vectors: GenerateInstanceRequest<u8>,
 ) -> GenerateInstanceResponse<VECTOR_SIZE> {
-    let instance = Instance::setup();
-    let pk: PublicKey<VECTOR_SIZE> = instance.public_key::<u8>();
-    let sk_vec: Vec<SecretKey<VECTOR_SIZE>> = requested_vectors
-        .iter()
-        .enumerate()
-        .map(|(k, vector)| {
-            match vector {
-                FHVector::<_>::NilsimsaVector(v_bytes) => {
-                    // The first coordinates are the bits of the fuzzy hash
-                    // the remaining ones are zeros except the k-th coordinate
-                    let v: [u8; VECTOR_SIZE] = array::from_fn(|i| {
-                        if i < NILSIMSA_VECTOR_SIZE_BITS {
-                            1 & (v_bytes[i / 8] >> (7 - (i % 8)))
-                        } else if i - NILSIMSA_VECTOR_SIZE_BITS == k {
-                            1
-                        } else {
-                            0
+
+    
+    let instances: Vec<(PublicKey<VECTOR_SIZE>, Vec<SecretKey<VECTOR_SIZE>>)> = requested_vectors
+        .par_chunks(RANDOM_PADDING_LEN)
+        .map(|chunk| {
+            let instance = Instance::setup();
+            let pk: PublicKey<VECTOR_SIZE> = instance.public_key::<u8>();
+            let sk_vec: Vec<SecretKey<VECTOR_SIZE>> = chunk
+                .iter()
+                .enumerate()
+                .map(|(k, vector)| {
+                    match vector {
+                        FHVector::<_>::NilsimsaVector(v_bytes) => {
+                            // The first coordinates are the bits of the fuzzy hash
+                            // the remaining ones are zeros except the k-th coordinate
+                            let v: [u8; VECTOR_SIZE] = array::from_fn(|i| {
+                                if i < NILSIMSA_VECTOR_SIZE_BITS {
+                                    1 & (v_bytes[i / 8] >> (7 - (i % 8)))
+                                } else if i - NILSIMSA_VECTOR_SIZE_BITS == k {
+                                    1
+                                } else {
+                                    0
+                                }
+                            });
+                            instance.secret_key(&v)
                         }
-                    });
-                    instance.secret_key(v)
-                }
-            }
+                    }
+                })
+                .collect();
+            (pk, sk_vec)
         })
         .collect();
 
-    GenerateInstanceResponse::from((pk, sk_vec))
+    GenerateInstanceResponse::from(instances)
 }

@@ -8,7 +8,7 @@ function write_len {
 }
 
 
-for len in 16 32 64 128 256 512; do
+for len in 256 512; do
 	write_len $len
 	cargo clean
 	RUSTFLAGS="-C target-cpu=native" cargo +nightly build --release

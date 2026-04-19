@@ -17,8 +17,7 @@ pub struct DdhFeSecretKey<const N: usize, T, U> {
     pub(crate) g: U,
     pub(crate) sx: T,
     pub(crate) tx: T,
-    #[serde(with = "BigArray")]
-    pub(crate) x: [T; N],
+    pub(crate) x: Vec<T>,
 }
 
 /// Generic structure representing a public key for the FE scheme.
@@ -27,18 +26,16 @@ pub struct DdhFeSecretKey<const N: usize, T, U> {
 pub struct DdhFePublicKey<const N: usize, U> {
     pub(crate) g: U,
     pub(crate) h: U,
-    #[serde(with = "BigArray")]
-    pub(crate) mpk: [U; N],
+    pub(crate) mpk: Vec<U>,
 }
 
 /// Generic structure representing a ciphertext for the FE scheme.
 /// * `U` : internal type representing a group element used by the FE scheme
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DdhFeCiphertext<const N: usize, U> {
     pub(crate) c: U,
     pub(crate) d: U,
-    #[serde(with = "BigArray")]
-    pub(crate) e: [U; N],
+    pub(crate) e: Vec<U>,
 }
 
 /// Generic structure representing a secret key for the FE scheme.
@@ -49,8 +46,8 @@ pub struct DdhFeCiphertext<const N: usize, U> {
 pub struct DdhFeInstance<const N: usize, T, U> {
     pub(crate) g: U,
     pub(crate) h: U,
-    pub(crate) msk: [MskItem<T>; N],
-    pub(crate) mpk: [U; N],
+    pub(crate) msk: Vec<MskItem<T>>,
+    pub(crate) mpk: Vec<U>,
 }
 
 /*

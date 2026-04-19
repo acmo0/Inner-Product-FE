@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 use core::array;
 use std::collections::HashMap;
+use std::cmp::PartialEq;
 
+use num_traits::identities::Zero;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::{Identity, MultiscalarMul};
@@ -43,17 +45,16 @@ impl<const N: usize> From<&SecretKey<N>> for CompressedSecretKey {
         let g = value.g.compress();
         let x_bytes: Vec<u8> = value
             .x
-            .map(|b| {
-                if b.eq(&Scalar::ZERO) {
-                    0
-                } else if b.eq(&Scalar::ONE) {
-                    1
-                } else {
-                    panic!("Cannot serialize vector");
-                }
-            })
             .chunks_exact(8)
-            .map(|b| (0..8).map(|i| b[i] * (1 << (7 - i))).sum())
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .enumerate()
+                    .map(|(i, b)| { 
+                        if b.eq(&Scalar::ONE) { (1 << (7 - i)) } else if b.eq(&Scalar::ZERO) {0} else {panic!("Cannot serialize vector");}
+                    })
+                    .sum()
+            })
             .collect();
 
         CompressedSecretKey {
@@ -78,8 +79,7 @@ impl<const N: usize> TryFrom<&CompressedSecretKey> for SecretKey<N> {
             None => return Err(()),
         };
 
-        let x: [Scalar; N] =
-            array::from_fn(|i| Scalar::from(1 & (value.x[i / 8] >> (7 - (i % 8)))));
+        let x: Vec<Scalar> = (0..N).map(|i| Scalar::from(1 & (value.x[i / 8] >> (7 - (i % 8))))).collect();
 
         Ok(SecretKey {
             g,
@@ -101,6 +101,7 @@ impl<const N: usize> From<&PublicKey<N>> for CompressedPublicKey<N> {
         CompressedPublicKey { g, h, mpk }
     }
 }
+
 impl<const N: usize> TryFrom<&CompressedPublicKey<N>> for PublicKey<N> {
     type Error = ();
 
@@ -115,7 +116,7 @@ impl<const N: usize> TryFrom<&CompressedPublicKey<N>> for PublicKey<N> {
             None => return Err(()),
         };
 
-        let mut mpk: [RistrettoPoint; N] = array::from_fn(|_| RistrettoPoint::identity());
+        let mut mpk: Vec<RistrettoPoint> = vec![RistrettoPoint::identity(); N];
 
         for i in 0..N {
             mpk[i] = match value.mpk[i].decompress() {
@@ -142,7 +143,7 @@ impl<const N: usize> PublicKey<N> {
 
         let c = r * self.g;
         let d = r * self.h;
-        let e: [RistrettoPoint; N] = array::from_fn(|i| vector[i] * self.g + r * self.mpk[i]);
+        let e: Vec<RistrettoPoint> = (0..N).map(|i| vector[i] * self.g + r * self.mpk[i]).collect();
 
         DdhFeCiphertext { c, d, e }
     }
@@ -170,13 +171,13 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
         let h = RistrettoPoint::random(&mut rng);
 
         // Init MSK/MPK
-        let msk: [MskItem<Scalar>; N] = array::from_fn(|_i| MskItem::get_rand(&mut rng));
-        let mpk: [RistrettoPoint; N] = array::from_fn(|i| msk[i].s * g + msk[i].t * h);
+        let msk: Vec<MskItem<Scalar>> = vec![MskItem::get_rand(&mut rng); N];
+        let mpk: Vec<RistrettoPoint> = (0..N).map(|i| msk[i].s * g + msk[i].t * h).collect();
 
         DdhFeInstance { g, h, msk, mpk }
     }
 
-    fn secret_key<T: Copy>(&self, vector: [T; N]) -> SecretKey<N>
+    fn secret_key<T: Copy + Zero + PartialEq>(&self, vector: &[T]) -> SecretKey<N>
     where
         Scalar: From<T>,
     {
@@ -185,10 +186,19 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
             .iter()
             .zip(vector)
             .map(|(e_i, v_i)| {
-                (
-                    e_i.s * <Scalar as From<T>>::from(v_i),
-                    e_i.t * <Scalar as From<T>>::from(v_i),
-                )
+                // As vectors are binary ones
+                if v_i == &T::zero() {
+                    (
+                        Scalar::ZERO,
+                        Scalar::ZERO,
+                    )
+
+                } else {
+                    (
+                        e_i.s,
+                        e_i.t,
+                    )
+                }
             })
             .reduce(|acc, e| (acc.0 + e.0, acc.1 + e.1))
             .unwrap();
@@ -197,7 +207,7 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
             g: self.g,
             sx: scal.0,
             tx: scal.1,
-            x: array::from_fn::<Scalar, N, _>(|i| Scalar::from(vector[i])),
+            x: vector.iter().map(|&v| Scalar::from(v)).collect(),
         }
     }
 
@@ -208,7 +218,7 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
         DdhFePublicKey {
             g: self.g,
             h: self.h,
-            mpk: self.mpk,
+            mpk: self.mpk.to_vec(),
         }
     }
 }
@@ -216,7 +226,7 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
 impl<const N: usize, T> FEPubKey<N, T, RistrettoPoint, Scalar> for PublicKey<N>
 where
     Scalar: std::convert::From<T>,
-    T: Copy,
+    T: Copy, 
 {
     fn encrypt<R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; N]) -> CipherText<N> {
         let v: [Scalar; N] = array::from_fn(|i| Scalar::from(vector[i]));
@@ -261,7 +271,7 @@ impl<const N: usize> FECipherText<RistrettoPoint> for CipherText<N> {
 
 impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
     fn decrypt(&self, ct: impl FECipherText<RistrettoPoint>, bound: u16) -> Option<u16> {
-        let ex = self.partial_decrypt(ct);
+        let ex = self.partial_decrypt(&ct);
 
         // BF to retrieve scalar product value
         let mut ip = bound / 2;
@@ -287,7 +297,7 @@ impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
         None
     }
 
-    fn partial_decrypt(&self, ct: impl FECipherText<RistrettoPoint>) -> RistrettoPoint {
+    fn partial_decrypt(&self, ct: &impl FECipherText<RistrettoPoint>) -> RistrettoPoint {
         let scalars: Vec<_> = self
             .x
             .iter()

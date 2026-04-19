@@ -32,34 +32,39 @@ pub type GenerateInstanceRequest<T> = Vec<FHVector<T>>;
 /// Reply send to the Compute server by the Authority. It contains the secret keys for the
 /// previously requested vectors and the associated public key.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GenerateInstanceResponse<const N: usize>(pub PublicKey<N>, pub Vec<CompressedSecretKey>);
+pub struct GenerateInstanceResponse<const N: usize>(pub Vec<(PublicKey<N>, Vec<CompressedSecretKey>)>);
 
 impl<const N: usize> GenerateInstanceResponse<N> {
     /// "Decompress" the response to retrieve the PublicKey and the SecretKey with
     /// the correct types for the underlying FE implementation.
-    pub fn decompress(&self) -> Result<(PublicKey<N>, Vec<SecretKey<N>>), Error> {
-        let pub_key = self.0.clone();
-
+    pub fn decompress(&self) -> Result<Vec<(PublicKey<N>, Vec<SecretKey<N>>)>, Error> {
         let mut vec_uncompressed = vec![];
-        for v in self.1.iter() {
-            match SecretKey::<N>::try_from(v) {
-                Ok(vec) => vec_uncompressed.push(vec),
-                Err(_) => {
-                    return Err(anyhow!(
-                        "Unable to decompress a vector from the authority, abort."
-                    ));
-                }
-            }
+
+        for instance in self.0.iter() {
+            let pub_key = instance.0.clone();
+            let sks = instance.1.iter()
+                .map(|v| {
+                    match SecretKey::<N>::try_from(v) {
+                        Ok(vec) => vec,
+                        Err(_) => {
+                            panic!(
+                                "Unable to decompress a vector from the authority, abort."
+                            );
+                        }
+                    }
+                })
+                .collect();
+            vec_uncompressed.push((pub_key, sks));
         }
-        Ok((pub_key, vec_uncompressed))
+        Ok(vec_uncompressed)
     }
 }
 
-impl<const N: usize> From<(PublicKey<N>, Vec<SecretKey<N>>)> for GenerateInstanceResponse<N> {
+impl<const N: usize> From<Vec<(PublicKey<N>, Vec<SecretKey<N>>)>> for GenerateInstanceResponse<N> {
     /// Allow to easily "compress" the public key and the secret keys for network transmission.
-    fn from(value: (PublicKey<N>, Vec<SecretKey<N>>)) -> GenerateInstanceResponse<N> {
-        let compressed_sk = value.1.iter().map(CompressedSecretKey::from).collect();
-        GenerateInstanceResponse(value.0, compressed_sk)
+    fn from(value: Vec<(PublicKey<N>, Vec<SecretKey<N>>)>) -> GenerateInstanceResponse<N> {
+        let compressed = value.into_iter().map(|(pk, sks)| (pk, sks.iter().map(CompressedSecretKey::from).collect())).collect();
+        GenerateInstanceResponse(compressed)
     }
 }
 
@@ -99,26 +104,23 @@ pub enum EncryptionResponse<const N: usize> {
 
 /// Enum representing a fuzzy hash vector. For now, only Nilsimsa fuzzy hashes
 /// are supported, but this will allow easy implementation for new hashes.
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
-pub enum FHVector<T: Serialize + DeserializeOwned> {
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
+pub enum FHVector<T> where Vec<T>: Serialize + DeserializeOwned {
     /// Nilsimsa vector variant
-    #[serde(with = "BigArray")]
-    NilsimsaVector([T; NILSIMSA_VECTOR_SIZE_BYTES]),
+    NilsimsaVector(Vec<T>),
 }
 
 impl FHVector<u8> {
     /// Convert a byte vector to a bit vector
-    pub fn to_bits<const N: usize>(&self) -> Result<[u8; N], TryFromSliceError> {
+    pub fn to_bits<const N: usize>(&self) -> Result<Vec<u8>, TryFromSliceError> {
         let vector = match self {
             Self::NilsimsaVector(v) => v,
         };
 
-        vector
+        Ok(vector
             .iter()
             .flat_map(|b| -> [u8; 8] { array::from_fn(|i| 1u8 & (b >> (7 - i))) })
-            .collect::<Vec<u8>>()
-            .as_slice()
-            .try_into()
+            .collect::<Vec<u8>>())
     }
 }
 
@@ -131,9 +133,7 @@ impl<T: Serialize + Debug + DeserializeOwned> TryFrom<Vec<T>> for FHVector<T> {
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
         match value.len() {
             NILSIMSA_VECTOR_SIZE_BYTES => {
-                let arr: [T; NILSIMSA_VECTOR_SIZE_BYTES] =
-                    <[T; NILSIMSA_VECTOR_SIZE_BYTES]>::try_from(value).unwrap();
-                Ok(FHVector::NilsimsaVector(arr))
+                Ok(FHVector::NilsimsaVector(value))
             }
             _ => Err(()),
         }
@@ -142,14 +142,14 @@ impl<T: Serialize + Debug + DeserializeOwned> TryFrom<Vec<T>> for FHVector<T> {
 
 impl From<[u8; 32]> for FHVector<u8> {
     fn from(value: [u8; 32]) -> FHVector<u8> {
-        let vec: [u8; NILSIMSA_VECTOR_SIZE_BYTES] = array::from_fn(|i| {
+        let vec = (0..NILSIMSA_VECTOR_SIZE_BYTES).map(|i| {
             let index = i % (NILSIMSA_VECTOR_SIZE_BYTES / 2);
             if i < NILSIMSA_VECTOR_SIZE_BYTES / 2 {
                 value[index]
             } else {
                 0xff ^ value[index]
             }
-        });
+        }).collect();
 
         FHVector::<_>::NilsimsaVector(vec)
     }

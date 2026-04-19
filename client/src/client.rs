@@ -67,9 +67,11 @@ impl Client {
         let mut score = i16::MIN;
 
         // Init the vector to compute the fuzzy hash comparison
-        let vector = match self.fuzzy_hash {
+        let vector: [u8; NILSIMSA_VECTOR_SIZE_BITS] = match self.fuzzy_hash {
             FHVector::NilsimsaVector(_) => {
                 self.fuzzy_hash.to_bits::<NILSIMSA_VECTOR_SIZE_BITS>()?
+                    .try_into()
+                    .unwrap()
             }
         };
 

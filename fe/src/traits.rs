@@ -9,10 +9,12 @@
 
 use crate::RANDOM_PADDING_LEN;
 use crate::generic::{DdhFeCiphertext, DdhFePublicKey, DdhFeSecretKey};
+use num_traits::identities::Zero;
 use curve25519_dalek::Scalar;
 use rand::CryptoRng;
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::Copy;
+use std::cmp::PartialEq;
 
 /// Trait for a generic functionnal encryption instance. The idea is that an instance should
 /// be able to generate a public key made of group element for an arbitrary sized vector, and
@@ -25,7 +27,7 @@ pub trait FEInstance<const N: usize, U, V> {
     where
         V: From<T>;
     /// Return a secret key associated to the input vector
-    fn secret_key<T: Copy>(&self, vector: [T; N]) -> DdhFeSecretKey<N, V, U>
+    fn secret_key<T: Copy + Zero + PartialEq>(&self, vector: &[T]) -> DdhFeSecretKey<N, V, U>
     where
         V: From<T>;
 }
@@ -53,7 +55,7 @@ pub trait FESecretKey<const N: usize, U, S>: Serialize + DeserializeOwned {
     /// Decrypt the given ciphertext (i.e compute an inner product) using the secret key
     fn decrypt(&self, ct: impl FECipherText<U>, bound: S) -> Option<S>;
     /// Perform all the decryption steps expect the bruteforce of the discrete log
-    fn partial_decrypt(&self, ct: impl FECipherText<U>) -> U;
+    fn partial_decrypt(&self, ct: &impl FECipherText<U>) -> U;
 }
 
 /// Trait that a ciphertext has to implement (i.e just getter for the field of the struct).
