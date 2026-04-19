@@ -9,12 +9,12 @@
 
 use crate::RANDOM_PADDING_LEN;
 use crate::generic::{DdhFeCiphertext, DdhFePublicKey, DdhFeSecretKey};
-use num_traits::identities::Zero;
 use curve25519_dalek::Scalar;
+use num_traits::identities::Zero;
 use rand::CryptoRng;
 use serde::{Serialize, de::DeserializeOwned};
-use std::marker::Copy;
 use std::cmp::PartialEq;
+use std::marker::Copy;
 
 /// Trait for a generic functionnal encryption instance. The idea is that an instance should
 /// be able to generate a public key made of group element for an arbitrary sized vector, and

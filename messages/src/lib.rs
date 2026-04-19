@@ -32,7 +32,9 @@ pub type GenerateInstanceRequest<T> = Vec<FHVector<T>>;
 /// Reply send to the Compute server by the Authority. It contains the secret keys for the
 /// previously requested vectors and the associated public key.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GenerateInstanceResponse<const N: usize>(pub Vec<(PublicKey<N>, Vec<CompressedSecretKey>)>);
+pub struct GenerateInstanceResponse<const N: usize>(
+    pub Vec<(PublicKey<N>, Vec<CompressedSecretKey>)>,
+);
 
 impl<const N: usize> GenerateInstanceResponse<N> {
     /// "Decompress" the response to retrieve the PublicKey and the SecretKey with
@@ -42,15 +44,13 @@ impl<const N: usize> GenerateInstanceResponse<N> {
 
         for instance in self.0.iter() {
             let pub_key = instance.0.clone();
-            let sks = instance.1.iter()
-                .map(|v| {
-                    match SecretKey::<N>::try_from(v) {
-                        Ok(vec) => vec,
-                        Err(_) => {
-                            panic!(
-                                "Unable to decompress a vector from the authority, abort."
-                            );
-                        }
+            let sks = instance
+                .1
+                .iter()
+                .map(|v| match SecretKey::<N>::try_from(v) {
+                    Ok(vec) => vec,
+                    Err(_) => {
+                        panic!("Unable to decompress a vector from the authority, abort.");
                     }
                 })
                 .collect();
@@ -63,7 +63,10 @@ impl<const N: usize> GenerateInstanceResponse<N> {
 impl<const N: usize> From<Vec<(PublicKey<N>, Vec<SecretKey<N>>)>> for GenerateInstanceResponse<N> {
     /// Allow to easily "compress" the public key and the secret keys for network transmission.
     fn from(value: Vec<(PublicKey<N>, Vec<SecretKey<N>>)>) -> GenerateInstanceResponse<N> {
-        let compressed = value.into_iter().map(|(pk, sks)| (pk, sks.iter().map(CompressedSecretKey::from).collect())).collect();
+        let compressed = value
+            .into_iter()
+            .map(|(pk, sks)| (pk, sks.iter().map(CompressedSecretKey::from).collect()))
+            .collect();
         GenerateInstanceResponse(compressed)
     }
 }
@@ -105,7 +108,10 @@ pub enum EncryptionResponse<const N: usize> {
 /// Enum representing a fuzzy hash vector. For now, only Nilsimsa fuzzy hashes
 /// are supported, but this will allow easy implementation for new hashes.
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
-pub enum FHVector<T> where Vec<T>: Serialize + DeserializeOwned {
+pub enum FHVector<T>
+where
+    Vec<T>: Serialize + DeserializeOwned,
+{
     /// Nilsimsa vector variant
     NilsimsaVector(Vec<T>),
 }
@@ -132,9 +138,7 @@ impl<T: Serialize + Debug + DeserializeOwned> TryFrom<Vec<T>> for FHVector<T> {
 
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
         match value.len() {
-            NILSIMSA_VECTOR_SIZE_BYTES => {
-                Ok(FHVector::NilsimsaVector(value))
-            }
+            NILSIMSA_VECTOR_SIZE_BYTES => Ok(FHVector::NilsimsaVector(value)),
             _ => Err(()),
         }
     }
@@ -142,14 +146,16 @@ impl<T: Serialize + Debug + DeserializeOwned> TryFrom<Vec<T>> for FHVector<T> {
 
 impl From<[u8; 32]> for FHVector<u8> {
     fn from(value: [u8; 32]) -> FHVector<u8> {
-        let vec = (0..NILSIMSA_VECTOR_SIZE_BYTES).map(|i| {
-            let index = i % (NILSIMSA_VECTOR_SIZE_BYTES / 2);
-            if i < NILSIMSA_VECTOR_SIZE_BYTES / 2 {
-                value[index]
-            } else {
-                0xff ^ value[index]
-            }
-        }).collect();
+        let vec = (0..NILSIMSA_VECTOR_SIZE_BYTES)
+            .map(|i| {
+                let index = i % (NILSIMSA_VECTOR_SIZE_BYTES / 2);
+                if i < NILSIMSA_VECTOR_SIZE_BYTES / 2 {
+                    value[index]
+                } else {
+                    0xff ^ value[index]
+                }
+            })
+            .collect();
 
         FHVector::<_>::NilsimsaVector(vec)
     }

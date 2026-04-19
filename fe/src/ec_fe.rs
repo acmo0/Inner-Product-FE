@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 use core::array;
-use std::collections::HashMap;
 use std::cmp::PartialEq;
+use std::collections::HashMap;
 
-use num_traits::identities::Zero;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::{Identity, MultiscalarMul};
+use num_traits::identities::Zero;
 use rand::{
     CryptoRng, SeedableRng,
     rngs::{StdRng, SysRng},
@@ -50,8 +50,14 @@ impl<const N: usize> From<&SecretKey<N>> for CompressedSecretKey {
                 chunk
                     .iter()
                     .enumerate()
-                    .map(|(i, b)| { 
-                        if b.eq(&Scalar::ONE) { (1 << (7 - i)) } else if b.eq(&Scalar::ZERO) {0} else {panic!("Cannot serialize vector");}
+                    .map(|(i, b)| {
+                        if b.eq(&Scalar::ONE) {
+                            (1 << (7 - i))
+                        } else if b.eq(&Scalar::ZERO) {
+                            0
+                        } else {
+                            panic!("Cannot serialize vector");
+                        }
                     })
                     .sum()
             })
@@ -79,7 +85,9 @@ impl<const N: usize> TryFrom<&CompressedSecretKey> for SecretKey<N> {
             None => return Err(()),
         };
 
-        let x: Vec<Scalar> = (0..N).map(|i| Scalar::from(1 & (value.x[i / 8] >> (7 - (i % 8))))).collect();
+        let x: Vec<Scalar> = (0..N)
+            .map(|i| Scalar::from(1 & (value.x[i / 8] >> (7 - (i % 8)))))
+            .collect();
 
         Ok(SecretKey {
             g,
@@ -143,7 +151,9 @@ impl<const N: usize> PublicKey<N> {
 
         let c = r * self.g;
         let d = r * self.h;
-        let e: Vec<RistrettoPoint> = (0..N).map(|i| vector[i] * self.g + r * self.mpk[i]).collect();
+        let e: Vec<RistrettoPoint> = (0..N)
+            .map(|i| vector[i] * self.g + r * self.mpk[i])
+            .collect();
 
         DdhFeCiphertext { c, d, e }
     }
@@ -188,16 +198,9 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
             .map(|(e_i, v_i)| {
                 // As vectors are binary ones
                 if v_i == &T::zero() {
-                    (
-                        Scalar::ZERO,
-                        Scalar::ZERO,
-                    )
-
+                    (Scalar::ZERO, Scalar::ZERO)
                 } else {
-                    (
-                        e_i.s,
-                        e_i.t,
-                    )
+                    (e_i.s, e_i.t)
                 }
             })
             .reduce(|acc, e| (acc.0 + e.0, acc.1 + e.1))
@@ -226,7 +229,7 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
 impl<const N: usize, T> FEPubKey<N, T, RistrettoPoint, Scalar> for PublicKey<N>
 where
     Scalar: std::convert::From<T>,
-    T: Copy, 
+    T: Copy,
 {
     fn encrypt<R: CryptoRng + ?Sized>(&self, rng: &mut R, vector: [T; N]) -> CipherText<N> {
         let v: [Scalar; N] = array::from_fn(|i| Scalar::from(vector[i]));

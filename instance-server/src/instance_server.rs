@@ -1,9 +1,8 @@
 use std::time::Duration;
 
-use rayon::prelude::*;
-use cpu_time::ProcessTime;
 use anyhow::{Error, Result, anyhow};
 use core::array;
+use cpu_time::ProcessTime;
 use fe::traits::FEInstance;
 use fe::{Instance, PublicKey, RANDOM_PADDING_LEN, SecretKey};
 use futures::SinkExt;
@@ -11,6 +10,7 @@ use futures::StreamExt;
 use log::{debug, error, info};
 use messages::{FHVector, NILSIMSA_VECTOR_SIZE_BITS};
 use messages::{GenerateInstanceRequest, GenerateInstanceResponse};
+use rayon::prelude::*;
 use std::mem;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
@@ -145,7 +145,7 @@ fn check_incomming_vectors(incomming_vectors: &GenerateInstanceRequest<u8>) -> R
     if incomming_vectors.is_empty() {
         return Err(anyhow!("Received empty message, abort"));
     } /*else if incomming_vectors.len() > SERVER_MAX_LEN {
-        return Err(anyhow!("Received too much vectors, abort"));
+    return Err(anyhow!("Received too much vectors, abort"));
     }*/
 
     let all_same_kind = incomming_vectors
@@ -164,8 +164,6 @@ fn check_incomming_vectors(incomming_vectors: &GenerateInstanceRequest<u8>) -> R
 fn generate_parameters_nilsimsa(
     requested_vectors: GenerateInstanceRequest<u8>,
 ) -> GenerateInstanceResponse<VECTOR_SIZE> {
-
-    
     let instances: Vec<(PublicKey<VECTOR_SIZE>, Vec<SecretKey<VECTOR_SIZE>>)> = requested_vectors
         .par_chunks(RANDOM_PADDING_LEN)
         .map(|chunk| {

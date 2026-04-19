@@ -12,6 +12,7 @@ use rand::{
 use tokio::net::TcpStream;
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
+use cpu_time::ProcessTime;
 use fe::curve25519_dalek::traits::Identity;
 use fe::traits::FEPubKey;
 use fe::{
@@ -22,7 +23,6 @@ use messages::{
     EncryptionRequest, EncryptionResponse, FHVector, HashComparisonRequest,
     NILSIMSA_VECTOR_SIZE_BITS,
 };
-use cpu_time::ProcessTime;
 
 /// Structure for having a stateful client.
 pub struct Client {
@@ -68,11 +68,11 @@ impl Client {
 
         // Init the vector to compute the fuzzy hash comparison
         let vector: [u8; NILSIMSA_VECTOR_SIZE_BITS] = match self.fuzzy_hash {
-            FHVector::NilsimsaVector(_) => {
-                self.fuzzy_hash.to_bits::<NILSIMSA_VECTOR_SIZE_BITS>()?
-                    .try_into()
-                    .unwrap()
-            }
+            FHVector::NilsimsaVector(_) => self
+                .fuzzy_hash
+                .to_bits::<NILSIMSA_VECTOR_SIZE_BITS>()?
+                .try_into()
+                .unwrap(),
         };
 
         // Init the RNG to perform encryption
@@ -131,8 +131,8 @@ impl Client {
                 None => {
                     let cpu_time: Duration = start.elapsed();
                     info!("CPU Time : {:?}", cpu_time);
-                    return Ok(score)
-                },
+                    return Ok(score);
+                }
             };
 
             info!("Encrypting vector...");

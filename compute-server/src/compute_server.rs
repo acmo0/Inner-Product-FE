@@ -1,15 +1,15 @@
 use std::time::Duration;
 
-use rand::seq::SliceRandom;
-use rand::{
-    SeedableRng,
-    rngs::{StdRng, SysRng},
-};
 use anyhow::{Error, Result};
 use cpu_time::ProcessTime;
 use futures::SinkExt;
 use futures::StreamExt;
 use log::{debug, error, info};
+use rand::seq::SliceRandom;
+use rand::{
+    SeedableRng,
+    rngs::{StdRng, SysRng},
+};
 use rayon::prelude::*;
 use rusqlite::Connection;
 use rusqlite::named_params;
@@ -126,10 +126,9 @@ impl Server {
             let start = ProcessTime::now();
 
             let keys = match requested_hash_type {
-                HashComparisonRequest::NILSIMSA => self
-                    .retrieve_secret_keys::<VECTOR_SIZE>(&hashes)
-                    .await?
-                    .0
+                HashComparisonRequest::NILSIMSA => {
+                    self.retrieve_secret_keys::<VECTOR_SIZE>(&hashes).await?.0
+                }
             };
 
             let cpu_time: Duration = start.elapsed();
