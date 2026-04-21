@@ -15,8 +15,8 @@
 //! };
 //!
 //! // The vectors you want to encrypt
-//! let v1: [u8; 4] = [1, 2, 3, 4];
-//! let v2: [u8; 4] = [4, 3, 2, 1];
+//! let v1: [u16; 4] = [1, 2, 3, 4];
+//! let v2: [u16; 4] = [4, 3, 2, 1];
 //! // Used for encryption
 //! let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
 //!
@@ -24,13 +24,13 @@
 //! // We want to encrypt vectors of u8
 //! let pk = instance.public_key::<u8>();
 //!
-//! let sk = instance.secret_key(v1);
+//! let sk = instance.secret_key(&v1);
 //! // Encrypt v2
 //! let encrypted = pk.encrypt(&mut rng, v2);
 //! // Decrypt and bound the result by let say 1000. If the scalar
 //! // product of v1 and v2 exceed that bound then you'll get an error
 //! let scalar_product = sk.decrypt(encrypted, 1000).unwrap();
-//! assert_eq!(scalar_product, (0..4).map(|i| (v1[i] as u16) * (v2[i] as u16)).sum());
+//! assert_eq!(scalar_product, v1.iter().zip(v2).map(|(e1, e2)| e1 * e2).sum());
 //! ```
 
 mod ec_fe;
@@ -92,7 +92,7 @@ mod tests {
             &two_random_vec(),
             |(secret_vec, secret_client_vec): ([u8; N], [u8; N])| {
                 let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
-                let sk = instance.secret_key(secret_vec);
+                let sk = instance.secret_key(&secret_vec);
 
                 let ct = pk.encrypt(&mut rng, secret_client_vec);
 
@@ -131,7 +131,7 @@ mod tests {
             &two_random_bitvec(),
             |(secret_vec, secret_client_vec): ([u8; N], [u8; N])| {
                 let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
-                let sk = instance.secret_key(secret_vec);
+                let sk = instance.secret_key(&secret_vec);
 
                 let ct = pk.encrypt(&mut rng, secret_client_vec);
 

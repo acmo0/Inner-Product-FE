@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::{Identity, MultiscalarMul};
-use num_traits::identities::Zero;
+use num_traits::identities::{One, Zero};
 use rand::{
     CryptoRng, SeedableRng,
     rngs::{StdRng, SysRng},
@@ -158,6 +158,7 @@ impl<const N: usize> PublicKey<N> {
         DdhFeCiphertext { c, d, e }
     }
 }
+
 // Useful to get a random master secret key element
 impl MskItem<Scalar> {
     pub(crate) fn get_rand<R: CryptoRng + ?Sized>(rng: &mut R) -> Self {
@@ -187,7 +188,7 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
         DdhFeInstance { g, h, msk, mpk }
     }
 
-    fn secret_key<T: Copy + Zero + PartialEq>(&self, vector: &[T]) -> SecretKey<N>
+    fn secret_key<T: Copy + Zero + One + PartialEq>(&self, vector: &[T]) -> SecretKey<N>
     where
         Scalar: From<T>,
     {
@@ -199,8 +200,11 @@ impl<const N: usize> FEInstance<N, RistrettoPoint, Scalar> for Instance<N> {
                 // As vectors are binary ones
                 if v_i == &T::zero() {
                     (Scalar::ZERO, Scalar::ZERO)
-                } else {
+                } else if v_i == &T::one() {
                     (e_i.s, e_i.t)
+                } else {
+                    let vi_scal = Scalar::from(*v_i);
+                    (e_i.s * vi_scal, e_i.t * vi_scal)
                 }
             })
             .reduce(|acc, e| (acc.0 + e.0, acc.1 + e.1))
@@ -282,6 +286,7 @@ impl<const N: usize> FESecretKey<N, RistrettoPoint, u16> for SecretKey<N> {
         let mut pp = Scalar::from(ip) * self.g;
         let mut pm = pp;
         while ip <= bound {
+            println!("{:?} {:?}", [im, ip], [pm, pp]);
             if pp == ex {
                 return Some(ip);
             } else {

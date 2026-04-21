@@ -10,7 +10,7 @@
 use crate::RANDOM_PADDING_LEN;
 use crate::generic::{DdhFeCiphertext, DdhFePublicKey, DdhFeSecretKey};
 use curve25519_dalek::Scalar;
-use num_traits::identities::Zero;
+use num_traits::identities::{One, Zero};
 use rand::CryptoRng;
 use serde::{Serialize, de::DeserializeOwned};
 use std::cmp::PartialEq;
@@ -27,7 +27,7 @@ pub trait FEInstance<const N: usize, U, V> {
     where
         V: From<T>;
     /// Return a secret key associated to the input vector
-    fn secret_key<T: Copy + Zero + PartialEq>(&self, vector: &[T]) -> DdhFeSecretKey<N, V, U>
+    fn secret_key<T: Copy + Zero + One + PartialEq>(&self, vector: &[T]) -> DdhFeSecretKey<N, V, U>
     where
         V: From<T>;
 }
