@@ -3,9 +3,7 @@
 ## Structure
 ### Libs
 - [benches](./benches) : benchmark for the functionnal encryption implementation
-- [comparator](./comparator) : crate to implement comparison function for a fuzzy hash over the encrypted domain
-- [fe](./fe) : functionnal encryption for vectors (over EC and FF)
-- [fuzzy_hashes](./fuzzy_hashes) : implementation and constants related to fuzzy hashes themself
+- [fe](./fe) : result-hiding functional encryption for vectors
 - [messages](./messages) : messages exchanged between the actors
 ### Bins
 - [client](./client) : code of the client
@@ -16,11 +14,11 @@
 ```
 git clone https://github.com/acmo0/Inner-Product-FE.git
 cd Inner-Product-FE
-cargo doc --open --no-deps
+cargo +nightly doc --open --no-deps
 ```
 
 ## Test
-> This will take a while to test (few minutes using elliptic-curve feature of the crate fe, few tens of munites for the finite-field feature of the crate fe)
+> This will take a while to test (few minutes)
 ```
 # Test ec implementation
 cargo test --release
@@ -31,7 +29,7 @@ cargo test --no-default-features -F finite-field --release
 
 ## Build
 ```sh
-RUSTFLAGS="-C target-cpu=native" cargo build --release
+RUSTFLAGS="-C target-cpu=native" cargo +nightly build --release
 ```
 
 ## Run
@@ -53,14 +51,3 @@ RUST_LOG=info ./target/release/compute-server 127.0.0.1:1337 127.0.0.1:1234 test
 # In another tty, init a connection with the compute server
 RUST_LOG=info ./target/release/client 127.0.0.1:1337 /path/to/a/file/to/hash
 ```
-
-## Benchmarking
-
-| Implementation | Base crate       | Encryption time | Decryption time |
-|----------------|------------------|-----------------|-----------------|
-| DH group n°15  | Bigint(1)          | 8.82 s          | 0.271 s         |
-| DH group n°15  | Malachite        | 7.06 s          | 0.043 s         |
-| Ristretto255(2)   | Curve25519-dalek | 0.03 s          | 0.005 s         |
-
-> Notes :  (1) Because it was less efficient than malachite I droped it to reduce implementation time  (2)elliptic curve operations are done in constant-time to avoid some side-channel attack
-
