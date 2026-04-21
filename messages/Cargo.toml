@@ -7,4 +7,3 @@ edition = "2024"
 anyhow = "1.0.101"
 fe = { version = "0.1.0", path = "../fe" }
 serde = { version = "1.0.228", features = ["alloc", "serde_derive"] }
-serde-big-array = "0.5.1"

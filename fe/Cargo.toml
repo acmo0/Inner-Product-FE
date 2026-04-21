@@ -7,7 +7,6 @@ edition = "2024"
 curve25519-dalek = { version = "5.0.0-pre.6", features = ["ff", "group", "rand_core", "serde"]}
 num-traits = "0.2.19"
 rand = { version = "0.10.0-rc.8" }
-rayon = "1.11.0"
 serde = { version = "1.0.228", features = ["alloc", "serde_derive"] }
 serde-big-array = "0.5.1"
 

@@ -23,7 +23,6 @@ pub struct Server {
 // Max number of vectors that a single instance can encrypt
 // if the request contains more (or at least as much) than this
 // the request is simply ignored.
-const SERVER_MAX_LEN: usize = RANDOM_PADDING_LEN;
 const VECTOR_SIZE: usize = RANDOM_PADDING_LEN + NILSIMSA_VECTOR_SIZE_BITS;
 //const SERVER_MAX_LEN: usize = NILSIMSA_VECTOR_SIZE_BITS;
 

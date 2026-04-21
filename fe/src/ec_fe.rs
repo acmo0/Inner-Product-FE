@@ -52,7 +52,7 @@ impl<const N: usize> From<&SecretKey<N>> for CompressedSecretKey {
                     .enumerate()
                     .map(|(i, b)| {
                         if b.eq(&Scalar::ONE) {
-                            (1 << (7 - i))
+                            1 << (7 - i)
                         } else if b.eq(&Scalar::ZERO) {
                             0
                         } else {

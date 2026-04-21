@@ -2,11 +2,10 @@
 
 //! Module containing all the messages/types exchanged over the
 // nextwork between the Authority, the Compute Server and the Client.
-use anyhow::{Error, Result, anyhow};
+use anyhow::{Error, Result};
 use fe::{CipherText, CompressedPublicKey, CompressedSecretKey, PublicKey, SecretKey};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
 use std::array;
 use std::array::TryFromSliceError;
 use std::fmt::Debug;
