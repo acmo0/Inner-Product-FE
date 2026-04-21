@@ -2,7 +2,7 @@
 
 ## Structure
 ### Libs
-- [benches](./benches) : benchmark for the functionnal encryption implementation
+- [benches](./benches) : benchmark for the functional encryption implementation
 - [fe](./fe) : result-hiding functional encryption for vectors
 - [messages](./messages) : messages exchanged between the actors
 ### Bins
